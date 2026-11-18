@@ -1,0 +1,15 @@
+# Desarrollo del laboratorio de planificación
+
+El público es alumnado de Sistemas Operativos de FIUBA. Escribí las consignas en español rioplatense. Conservá el recorrido del laboratorio de memoria virtual: menú de laboratorios, carga/preparación, predicción, avance por eventos, retroceso, reproducción, explicación contextual y detalle técnico consultable. Mantené el fondo crema, la cabecera celeste y los acentos por trabajo, siempre con letras visibles además del color.
+
+## Contrato del motor
+
+Un procesador, costo de cambio nulo, un disco FIFO. Los intervalos son [inicio, fin). Las ráfagas de cada trabajo alternan CPU y E/S. SJF y STCF usan la próxima ráfaga conocida; STCF compara lo que resta de la que ya corre. Con igual restante, el menor índice en la carga tiene prioridad. FIFO y RR respetan el orden de ingreso a listos. En una frontera se reconocen fin de ráfaga, llegadas en orden de carga, desbloqueo y vencimiento del cuanto, antes de elegir CPU. En la figura 7.9, A vuelve en t = 80 ms y empata en 10 ms con B; el desempate por índice despacha A.
+
+La vista «E/S en serie» es el testigo de la figura 7.8. Intencionalmente permite inactividad con B listo. No generalizar ese comportamiento a FIFO.
+
+## Criterios de aceptación
+
+Cada cambio del motor debe conservar las nueve figuras del capítulo, la secuencia de estados y los resultados de las pruebas. Una CPU solo ejecuta un proceso a la vez. Ningún trabajo bloqueado usa CPU. La espera en listos excluye E/S. Respuesta es primera ejecución menos llegada. Retorno es finalización menos llegada. Un dato desconocido en una traza parcial se muestra como tal.
+
+Antes de entregar, ejecutá «node --test test/engine.test.js». Probá manualmente Siguiente, Anterior, Reiniciar, Reproducir, selección de política y una carga propia. Verificá la interfaz con teclado y tamaño de pantalla angosto. Conservá el arranque directo desde dist/index.html sin dependencias remotas.
