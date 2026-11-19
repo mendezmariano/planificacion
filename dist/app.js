@@ -1,6 +1,7 @@
 'use strict';
 (() => {
   const {cases, simulate} = window.CpuLab;
+  const {contextFor} = window.CpuChapter;
   const el = id => document.getElementById(id);
   const colors = {A:'#8ed1f2',B:'#b1da91',C:'#ffc07b',D:'#e1b0eb',E:'#f4a7a1',F:'#a8d9d0'};
   const rules = {
@@ -38,6 +39,15 @@
     el('error').hidden=!invalidQuantum;
     if(invalidQuantum) el('error').textContent='El cuanto debe ser un entero de 1 a 300. Se usó el último valor válido: '+q+'.';
     step=0;
+    const context = contextFor(which,policy,q);
+    el('chapterMode').textContent=context.mode;
+    el('chapterMode').dataset.kind=context.kind;
+    el('chapterReference').textContent=context.reference;
+    el('chapterConfiguration').textContent=context.configuration;
+    el('chapterAssumptions').textContent=context.assumptions;
+    el('chapterQuestion').textContent=context.question;
+    el('chapterNote').textContent=context.note;
+    el('chapterNote').hidden=!context.note;
     render();
   }
   function traceSvg(now) {
