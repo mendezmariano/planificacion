@@ -126,6 +126,17 @@ def check_figures(browser, report):
             assert current['disk'] == ([] if disk is None else [disk]), (spec['figure'], current)
             assert current['ready'] == list(spec['ready'][i]), (spec['figure'], current)
         assert current['results']
+        labels = browser.execute("""
+          return [...document.querySelectorAll('#timeline text')].map(label => {
+            const matrix = label.getScreenCTM();
+            const fontSize = parseFloat(getComputedStyle(label).fontSize);
+            return {text: label.textContent, pixels: fontSize * Math.hypot(matrix.c, matrix.d)};
+          });
+        """)
+        assert all(label['pixels'] >= 11.9 for label in labels), ('Rótulos demasiado chicos', spec['figure'], labels)
+        expected_ids = [s[2] or '–' for s in spec['cpu'] + spec.get('disk', [])]
+        visible_ids = [label['text'] for label in labels if label['text'] in expected_ids]
+        assert visible_ids == expected_ids, ('Hay intervalos sin letra o marca de ocio', spec['figure'], visible_ids)
         # Leer texto, sin usar las métricas internas de la aplicación como resultado esperado.
         rows = browser.execute("return [...[...document.querySelectorAll('#results table')].at(-1).tBodies[0].rows].map(r=>[...r.cells].map(c=>c.textContent));")
         expected = []
