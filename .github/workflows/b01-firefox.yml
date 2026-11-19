@@ -13,7 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Verificar la apertura local a 1280 y 360 px
-        run: python3 scripts/check_firefox.py --output-dir "$RUNNER_TEMP/firefox"
+        run: python3 scripts/observe_firefox.py --output-dir "$RUNNER_TEMP/firefox"
       - name: Guardar el informe y las capturas
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
