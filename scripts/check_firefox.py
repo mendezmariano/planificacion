@@ -231,14 +231,20 @@ def main():
         # El proxy inaccesible impide que la página dependa de recursos de Internet.
         prefs = {'network.proxy.type': 1, 'network.proxy.http': '127.0.0.1', 'network.proxy.http_port': 9,
                  'network.proxy.ssl': '127.0.0.1', 'network.proxy.ssl_port': 9, 'network.proxy.no_proxies_on': ''}
-        session = browser.request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'firefox',
+        session = browser.request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'firefox', 'webSocketUrl': True,
             'moz:firefoxOptions': {'binary': args.firefox, 'args': [] if args.headed else ['-headless'], 'prefs': prefs}}}}, session=False)
         browser.session = session['sessionId']
         report['browser'] = session['capabilities']['browserName'] + ' ' + session['capabilities']['browserVersion']
         browser.request('POST', '/timeouts', {'implicit': 2000, 'pageLoad': 15000, 'script': 10000})
+        handle = browser.request('GET', '/window')
         for width in [1280, 360]:
             report['stage'] = 'Preparar pantalla de ' + str(width) + ' px'
             browser.request('POST', '/window/rect', {'width': width, 'height': 1000})
+            viewport_command = ['node', '--experimental-websocket', str(ROOT/'scripts/firefox_viewport.mjs'),
+                                session['capabilities']['webSocketUrl'], handle, str(width), '900']
+            sized = subprocess.run(viewport_command, capture_output=True, text=True, timeout=15)
+            if sized.returncode:
+                raise RuntimeError(f'Firefox no pudo fijar el área de contenido en {width} px: {sized.stderr.strip()}')
             browser.open()
             viewport = browser.execute('return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth};')
             report['viewports'].append(viewport)
@@ -249,6 +255,10 @@ def main():
             assert viewport['scrollWidth'] <= width, ('Desborde horizontal', viewport)
             check_figures(browser, report)
             check_controls(browser, report)
+            # Guardar la figura 7.5 cuando ya se ven el desalojo y los trabajos listos.
+            browser.click('#next')
+            browser.click('#next')
+            assert snapshot(browser)['time'] == 't = 10 s'
             for label, selector in [('apunte', '.chapter'), ('simulacion', '.sim')]:
                 name = f'firefox-{width}-{label}.png'
                 browser.screenshot(output/name, selector)

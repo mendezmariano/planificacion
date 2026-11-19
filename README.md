@@ -16,7 +16,7 @@ Abrí http://localhost:8000. Para probar el motor con Node.js 18 o posterior:
 node --test test/*.test.js
 ```
 
-Para verificar la interfaz en Firefox, necesitás Python 3, Node.js, Firefox y geckodriver disponibles en tu equipo:
+Para verificar la interfaz en Firefox, necesitás Python 3, Node.js con WebSocket integrado (probado con 20.20 o posterior), Firefox y geckodriver en tu equipo.
 
 ```bash
 python3 scripts/check_firefox.py --output-dir /tmp/planificacion-firefox-review
