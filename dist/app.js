@@ -33,9 +33,10 @@
   let playback = null;
   let request = null;
 
-  function describeEvent(frame) {
+  function describeEvent({frame, index}) {
     const current = frame.jobs.find(j => j.id === frame.cpu);
-    if (current && (policy === 'STCF' || (policy === 'SJF' && !frame.decision.startsWith('Continúa')))) {
+    const dispatched = result.frames[index-1]?.cpu !== frame.cpu;
+    if (current && (policy === 'STCF' || (policy === 'SJF' && dispatched))) {
       const tied = frame.jobs.filter(j => (j.state === 'listo' || j === current) && j.remaining === current.remaining);
       if (tied.length > 1) return new Intl.ListFormat('es-AR').format(tied.map(j => j.id))+' empatan en '+current.remaining+' '+work.unit+
         '. Ejecuta '+current.id+' por orden de carga.';
@@ -46,13 +47,16 @@
   function drawTechnical() {
     if (!el('technical').open || !snapshot) return;
     const s = snapshot, unit = work.unit;
-    const rows = s.jobs.map(j => [j.id, j.arrival, j.state, j.burst === null ? '—' : fmt(j.burst), fmt(j.wait.total)]);
+    const rows = s.jobs.map(j => {
+      const input = work.jobs.find(item => item.id === j.id);
+      return [j.id, j.arrival, input.bursts.join(' / '), j.state, j.burst === null ? '—' : fmt(j.burst), fmt(j.wait.total)];
+    });
     const intervals = list => list.filter(span => span.start < s.time).map(span =>
       [span.start, fmt(Math.min(s.time, span.end)), span.id || 'Ociosa']);
     const listTable = list => list.length ? table(['Desde','Hasta','Trabajo'],list) : '<p>Todavía no hay intervalos transcurridos.</p>';
     el('techbody').innerHTML = '<h3>Estado en '+fmt(s.time)+' '+unit+'</h3><p>Cola de listos · <b id="ready">'+(s.frame.ready.join(', ') || 'Vacía')+
       '</b>　 CPU · <b id="cpu">'+(s.frame.cpu || 'Ociosa')+'</b>　 Disco · <b id="disk">'+(s.frame.disk || 'Libre')+'</b></p>'+
-      table(['Trabajo','Llegada','Estado','Ráfaga restante','Espera en listos'],rows)+
+      table(['Trabajo','Llegada','Ráfagas','Estado','Ráfaga restante','Espera en listos'],rows)+
       '<h3>Intervalos de CPU ('+unit+')</h3>'+listTable(intervals(result.cpuSegments))+
       (result.diskSegments.length ? '<h3>Intervalos de disco ('+unit+')</h3>'+listTable(intervals(result.diskSegments)) : '');
   }
@@ -84,7 +88,7 @@
     if (!previous || snapshot.index !== previous.index) {
       const f = snapshot.frame;
       el('eventTime').textContent = f.t+' '+work.unit;
-      el('decision').textContent = describeEvent(f);
+      el('decision').textContent = describeEvent(snapshot);
       el('story').textContent = f.notes.join(' ');
     }
     el('prev').disabled = time === 0;

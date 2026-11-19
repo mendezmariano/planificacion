@@ -352,6 +352,11 @@ def main():
                     filename = f'firefox-{width}-{name}.png'
                     browser.screenshot(output/filename, selector)
                     report['screenshots'].append(filename)
+            browser.select('#figure', '7.5')
+            browser.click('#end')
+            filename = f'firefox-{width}-retorno-final.png'
+            browser.screenshot(output/filename, '.accounts')
+            report['screenshots'].append(filename)
             resources = browser.execute("return performance.getEntriesByType('resource').map(r=>r.name);")
             assert all(url.startswith('file:') for url in resources), resources
             report['checks'].append(f'Apertura file:// y recursos locales a {width} px')

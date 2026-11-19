@@ -31,16 +31,17 @@
     const unit = caseId === 'disco' ? 'ms' : 's';
     const rule = {
       FIFO:'FIFO respeta el ingreso a listos y no desaloja una ráfaga en curso.',
-      SJF:'SJF elige la ráfaga lista más corta y la deja terminar.',
-      STCF:'STCF compara lo que resta de la ráfaga y permite el desalojo. En un empate tiene prioridad el orden de carga.',
+      SJF:'SJF conoce la duración de la próxima ráfaga. Elige la más corta entre los trabajos listos y la deja terminar.',
+      STCF:'STCF conoce las próximas ráfagas, compara lo que resta de la que ya corre y permite el desalojo. En un empate tiene prioridad el orden de carga.',
       RR:'RR respeta el ingreso a listos y usa un cuanto de '+quantum+' '+unit+'.',
       SERIE:'E/S en serie reserva el turno de A incluso durante sus bloqueos.'
     }[policy];
-    const assumptions = 'Un procesador y cambios de contexto de costo cero. ' + rule;
+    const resources = caseId === 'disco' ? 'Un disco FIFO atiende la E/S.' : 'La carga usa solo CPU, sin E/S.';
+    const assumptions = 'Un procesador y cambios de contexto de costo cero. '+resources+' '+rule;
     if (caseId === 'propia') return {
       kind:'custom', figure:null, mode:'Carga propia', title:'Carga propia',
       reference:'Capítulo 7 · '+policy, configuration:'Sin figura asociada. Se usan tus llegadas y duraciones.',
-      load:'Los trabajos aparecen por orden de llegada.', assumptions:assumptions+' Carga sin E/S.', note:''
+      load:'Los trabajos aparecen por orden de llegada.', assumptions, note:''
     };
     const lesson = lessons[caseId];
     const options = figures.filter(f => f.caseId === caseId);
