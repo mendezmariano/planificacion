@@ -48,9 +48,7 @@ class Firefox:
             self.click(selector)
         # Soltar Ctrl antes de escribir. Enviar todo como una cadena a Gecko puede
         # dejar Ctrl activo y convertir el primer dígito en un atajo de teclado.
-        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': [
-            {'type': 'keyDown', 'value': '\ue009'}, {'type': 'keyDown', 'value': 'a'},
-            {'type': 'keyUp', 'value': 'a'}, {'type': 'keyUp', 'value': '\ue009'}]}]})
+        self.key('a', modifier='\ue009')
         self.request('POST', '/element/' + element + '/value', {'text': value})
         actual = self.execute('return document.querySelector(arguments[0]).value;', selector)
         assert actual == value, f'{selector}: se quiso escribir {value!r}, quedó {actual!r}'
@@ -60,15 +58,17 @@ class Firefox:
         assert option, (selector, value)
         self.request('POST', '/element/' + option[ELEMENT] + '/click', {})
 
-    def key(self, key):
-        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': [
-            {'type': 'keyDown', 'value': key}, {'type': 'keyUp', 'value': key}]}]})
+    def key(self, key, modifier=None):
+        keys = [modifier, key] if modifier else [key]
+        actions = [{'type': 'keyDown', 'value': k} for k in keys]
+        actions.extend({'type': 'keyUp', 'value': k} for k in reversed(keys))
+        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': actions}]})
 
-    def tab_to(self, element_id):
+    def tab_to(self, element_id, backwards=False):
         for _ in range(60):
-            if self.execute('return document.activeElement.id;') == element_id:
+            if self.execute('return document.hasFocus() && document.activeElement.id === arguments[0];', element_id):
                 return
-            self.key('\ue004')
+            self.key('\ue004', modifier='\ue008' if backwards else None)
         raise AssertionError('No se alcanza con Tab: ' + element_id)
 
     def text(self, selector):
@@ -171,7 +171,7 @@ def check_controls(browser, report):
     assert snapshot(browser)['event'].startswith('1/'), 'Enter sobre Siguiente debe avanzar un evento'
     report['checks'].append('Tab, foco visible y avance con Enter')
     report['stage'] = 'Editar y guardar una carga propia con teclado'
-    browser.tab_to('configBtn')
+    browser.tab_to('configBtn', backwards=True)
     browser.key('\ue007')
     assert browser.execute("return document.querySelector('dialog').open;")
     browser.tab_to('edit')
@@ -187,7 +187,7 @@ def check_controls(browser, report):
     assert browser.text('#time') == 't = 6 s', 'La carga propia debe terminar en 6 s con FIFO'
     report['checks'].append('Carga propia ingresada con teclado y ejecutada hasta el final')
     report['stage'] = 'Cerrar el diálogo con Escape'
-    browser.tab_to('configBtn')
+    browser.tab_to('configBtn', backwards=True)
     browser.key('\ue007')
     browser.key('\ue00c')
     assert not browser.execute("return document.querySelector('dialog').open;")
