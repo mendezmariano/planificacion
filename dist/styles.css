@@ -99,6 +99,7 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
 .sum { margin-top: 12px; padding: 11px 13px; border-left: 3px solid #4e889f; background: #eef5f5; }
 .sum small { display: block; margin-bottom: 5px; color: #365d6b; font-weight: 650; }
 .formula { font: 650 14px/1.55 var(--mono); overflow-wrap: anywhere; }
+.mean-value { white-space: nowrap; }
 .formula .term { display: inline-block; vertical-align: top; text-align: center; white-space: nowrap; }
 .formula .term::after {
   content: attr(data-id); display: block; border-top: 2px solid var(--tone);
