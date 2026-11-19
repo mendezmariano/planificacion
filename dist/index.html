@@ -1,19 +1,82 @@
 <!doctype html>
-<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#86cef0"><title>Turno de CPU · Planificación</title><link rel="stylesheet" href="styles.css"><script defer src="engine.js"></script><script defer src="chapter.js"></script><script defer src="app.js"></script></head>
-<body><header><div class="top"><a class="brand" href="./index.html"><span class="brandicon" aria-hidden="true">▤</span><span>Turno de CPU<small>LABORATORIO DE PLANIFICACIÓN</small></span></a><nav aria-label="Navegación principal"><label class="sr" for="policy">Laboratorio</label><select id="policy"><option>FIFO</option><option>SJF</option><option>STCF</option><option>RR</option><option value="SERIE">E/S en serie</option></select><button data-help="guide">Guía rápida</button><button data-help="theory">Esquema teórico</button></nav><b class="school">FIUBA <i>/</i> Sistemas Operativos</b></div></header>
-<main><section class="intro"><div><h1>¿A quién le toca la <span>CPU?</span></h1><p>Elegí una carga, anticipá la decisión y seguí cada turno en el reloj.</p></div><div class="chiptag"><b>1 CPU</b><span>Un trabajo a la vez</span></div></section>
-<section class="config" aria-label="Configuración"><div><label for="case">Explorá un ejemplo</label><select id="case"></select></div><div><label for="q">Cuanto de RR</label><input id="q" type="number" min="1" max="300" value="1"></div><div><label for="configBtn">Llegadas y ráfagas</label><button class="btn" id="configBtn">Ver o editar carga</button></div><button id="prepare" class="btn yellow">Preparar ejemplo →</button><p role="alert" id="error" hidden></p></section>
-<section class="chapter" aria-labelledby="chapterTitle">
-<div class="chapterhead"><h2 id="chapterTitle">En el apunte · Capítulo 7</h2><span id="chapterMode" role="status"></span></div>
-<p id="chapterReference"></p><p id="chapterConfiguration" class="chapterconfiguration"></p>
-<div class="chapterbody"><div><h3>Supuestos de esta ejecución</h3><p id="chapterAssumptions"></p></div><div class="chapterquestion"><h3>Antes de avanzar</h3><p id="chapterQuestion"></p></div></div>
-<p id="chapterNote" class="chapternote" hidden></p>
-</section>
-<section class="sim"><div class="simhead"><h2><i class="live"></i> Recorrido de la CPU</h2><span id="caseTag"></span></div><div class="steps" aria-label="Etapas"><span><b>1</b> Observar</span><span><b>2</b> Decidir y ejecutar</span><span><b>3</b> Comparar</span></div>
-<div class="scene"><div class="statusgrid"><section><h3>Cola de listos</h3><div class="state" id="ready"></div></section><section class="proc"><h3>En la CPU</h3><div class="state" id="cpu"></div></section><section><h3 id="diskTitle">En el disco</h3><div class="state" id="disk"></div></section></div>
-<div class="tracehead"><h3>Línea de tiempo</h3><strong id="time"></strong></div><div id="timeline"></div><div id="loadline"></div></div>
-<div class="explain" aria-live="polite" aria-atomic="true"><b id="eventnum"></b><div><h3 id="decision"></h3><p id="story"></p></div></div>
-<div class="playbar"><button id="reset">↺ Reiniciar</button><button id="play">▷ Reproducir</button><label class="sr" for="speed">Velocidad</label><select id="speed"><option value="2400">1×</option><option value="1200">2×</option><option value="4800">0,5×</option></select><div class="push"></div><button class="btn" id="prev">← Anterior</button><button class="btn yellow" id="next">Siguiente →</button><button id="end">Ir al final</button></div></section>
-<section id="results" hidden></section><details class="technical"><summary>Mirar debajo del capó</summary><div id="techbody"></div></details>
-<footer><b>FIUBA / Sistemas Operativos</b><span>Basado en OSTEP · Capítulo 7</span></footer></main>
-<dialog id="dialog"><form method="dialog"><button class="close btn" aria-label="Cerrar">Cerrar ×</button></form><div id="dialogbody"></div></dialog></body></html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#92cfe5">
+  <title>Turno de CPU · Planificación</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="engine.js"></script>
+  <script defer src="chapter.js"></script>
+  <script defer src="trace.js"></script>
+  <script defer src="simulation-view.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="masthead"><div class="top">
+    <a class="brand" href="./index.html"><span class="brandicon" aria-hidden="true"><i></i><i></i><i></i></span>Turno de CPU</a>
+    <span class="school">FIUBA <b>/</b> Sistemas Operativos</span>
+    <nav aria-label="Ayuda del laboratorio"><button data-help="guide">Guía de uso</button><button data-help="theory">Teoría</button></nav>
+  </div></header>
+  <main>
+    <section class="chapter" aria-labelledby="chapterTitle">
+      <div class="intro">
+        <div class="eyebrow">Capítulo 7 <span>/</span> <span id="chapterReference"></span></div>
+        <h1 id="chapterTitle">Planificación</h1>
+        <p id="chapterLoad"></p>
+      </div>
+      <div class="picker"><label for="figure">Ejercicio del apunte</label><select id="figure"></select></div>
+    </section>
+
+    <div class="playbar" role="group" aria-label="Controles de reproducción">
+      <button id="play" class="primary">Pausar</button>
+      <button id="reset">↺ Reiniciar</button><button id="prev">← Anterior</button><button id="next">Siguiente →</button>
+      <label for="speed">Velocidad</label><select id="speed"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+      <button id="end">Ir al final</button>
+    </div>
+
+    <div class="workspace">
+      <section class="sim panel" aria-labelledby="jobsTitle">
+        <div class="panel-head"><div><h2 id="jobsTitle">Trabajos</h2><p>En orden de llegada</p></div>
+          <div class="clock"><span>Reloj</span><strong id="time"></strong></div>
+        </div>
+        <div class="bar-key"><span class="key-piece spent"></span>Ejecutado <span class="key-piece"></span>Pendiente</div>
+        <ol id="jobs"></ol>
+        <p id="noJobs" hidden>Esperando la primera llegada.</p>
+        <div class="event" aria-live="polite" aria-atomic="true"><b id="eventTime"></b><div><strong id="decision"></strong><p id="story"></p></div></div>
+        <div class="trace">
+          <h3>Línea de tiempo <span id="axisUnit"></span></h3>
+          <div id="timeline"></div>
+          <label class="scrub" for="seek">Recorrer el tiempo<input type="range" id="seek" min="0" step="1" value="0"></label>
+        </div>
+      </section>
+
+      <section class="accounts panel" aria-labelledby="accountTitle">
+        <div class="panel-head"><div><h2 id="accountTitle">Cálculo de tiempos</h2><p id="accountContext"></p></div></div>
+        <div id="calculations"></div>
+      </section>
+    </div>
+    <section id="results" class="panel" hidden>
+      <h2>Resultados de la simulación</h2>
+      <div id="resultTables"></div><button id="continue" class="secondary" hidden></button>
+    </section>
+    <details id="settings" class="details">
+      <summary>Explorar otra carga o política</summary>
+      <div class="settings-body">
+        <div class="config">
+          <label>Política<select id="policy"><option>FIFO</option><option>SJF</option><option>STCF</option><option>RR</option><option value="SERIE">E/S en serie</option></select></label>
+          <label>Carga<select id="case"></select></label>
+          <label>Cuanto de RR<input id="q" type="number" min="1" max="300" value="1"></label>
+          <button class="secondary" id="configBtn">Ver o editar carga</button>
+        </div>
+        <p id="error" role="alert" hidden></p>
+        <p><b id="chapterMode"></b> <span id="chapterConfiguration"></span></p>
+        <p id="chapterAssumptions"></p><p id="chapterNote" hidden></p>
+      </div>
+    </details>
+    <details class="details" id="technical"><summary>Mirar debajo del capó</summary><div id="techbody"></div></details>
+    <footer><b>FIUBA / Sistemas Operativos</b><span>OSTEP · Capítulo 7</span></footer>
+  </main>
+  <dialog id="dialog" aria-labelledby="dialogTitle"><form method="dialog"><button class="secondary close">Cerrar</button></form><div id="dialogbody"></div></dialog>
+</body>
+</html>

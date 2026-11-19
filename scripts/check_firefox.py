@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recorrido de B01/B02 en Firefox real mediante WebDriver, sin bibliotecas Python externas."""
+"""Simulaciones y cuentas del capítulo 7 en Firefox real mediante WebDriver, sin bibliotecas Python externas."""
 import argparse
 import base64
 import json
@@ -93,121 +93,193 @@ def wait_for(predicate, description, timeout=6):
 
 def snapshot(browser):
     return browser.execute("""
-      const badges = id => [...document.querySelectorAll('#'+id+' .badge')].map(n=>n.textContent);
-      return {time:document.getElementById('time').textContent,
-        cpu:badges('cpu'), disk:badges('disk'), ready:badges('ready'),
-        results:!document.getElementById('results').hidden,
-        event:document.getElementById('eventnum').textContent};
+      const text = id => document.getElementById(id)?.textContent;
+      const jobs = [...document.querySelectorAll('#jobs .job:not([hidden])')].map(row => ({
+        id:row.dataset.id, state:row.querySelector('.state').textContent,
+        used:Number(row.querySelector('.bar').getAttribute('aria-valuenow')),
+        fill:row.querySelector('.bar-fill').getBoundingClientRect().width,
+        left:row.querySelector('.left').textContent
+      }));
+      return { time:text('time'), t:Number(document.getElementById('time').dataset.time),
+        cpu:text('cpu'), disk:text('disk'), ready:text('ready'), jobs,
+        results:!document.getElementById('results').hidden };
     """)
+
+
+def scrub(browser, instant):
+    # Mismo evento que produce el control de tiempo al arrastrarlo.
+    browser.execute("""
+      const range = document.getElementById('seek');
+      range.value = arguments[0];
+      range.dispatchEvent(new Event('input', {bubbles:true}));
+    """, instant)
+
+
+def disclosure(browser, name, opened):
+    if browser.execute("return document.getElementById(arguments[0]).open;", name) != opened:
+        browser.click('#' + name + ' summary')
 
 
 def check_figures(browser, report):
     data = subprocess.check_output(['node', '-e', "process.stdout.write(JSON.stringify(require('./test/fixtures/chapter7.js')))"], cwd=ROOT)
+    disclosure(browser, 'technical', True)
     for spec in json.loads(data):
-        report['stage'] = 'Figura ' + spec['figure']
-        browser.select('#policy', spec['policy'])
-        if spec['policy'] != 'SERIE':
-            browser.select('#case', spec['caseId'])
-        browser.click('#prepare')
+        figure = spec['figure']
+        report['stage'] = 'Figura ' + figure
+        browser.select('#figure', figure)
+        browser.click('#reset')
         assert browser.text('#chapterMode') == 'Configuración del apunte'
-        assert 'Figura ' + spec['figure'] + ':' in browser.text('#chapterReference')
+        assert 'Figura ' + figure in browser.text('#chapterReference')
         assert browser.text('#chapterAssumptions').strip()
-        assert browser.text('#chapterQuestion').strip()
         assert not snapshot(browser)['results']
-        times = [row[0] for row in spec['cpu']] + [spec['cpu'][-1][1]]
         unit = 'ms' if spec['caseId'] == 'disco' else 's'
-        for i, instant in enumerate(times):
-            browser.click('#next')
+        frames = [s[0] for s in spec['cpu']] + [spec['cpu'][-1][1]]
+        middle = [(start + end) // 2 for start, end, job in spec['cpu']]
+        for instant in sorted(set(frames + middle)):
+            scrub(browser, instant)
             current = snapshot(browser)
-            cpu = spec['cpu'][i][2] if i < len(spec['cpu']) else None
-            disk = next((row[2] for row in spec.get('disk', []) if row[0] <= instant < row[1]), None)
-            assert current['time'] == f't = {instant} {unit}', (spec['figure'], current)
-            assert current['cpu'] == ([] if cpu is None else [cpu]), (spec['figure'], current)
-            assert current['disk'] == ([] if disk is None else [disk]), (spec['figure'], current)
-            assert current['ready'] == list(spec['ready'][i]), (spec['figure'], current)
+            index = max(i for i, t in enumerate(frames) if t <= instant)
+            cpu = spec['cpu'][index][2] if index < len(spec['cpu']) else None
+            disk = next((s[2] for s in spec.get('disk', []) if s[0] <= instant < s[1]), None)
+            assert current['time'] == f'{instant} {unit}', (figure, current)
+            assert current['cpu'] == (cpu or 'Ociosa'), (figure, current)
+            assert current['disk'] == (disk or 'Libre'), (figure, current)
+            assert current['ready'] == (', '.join(spec['ready'][index]) or 'Vacía'), (figure, current)
+            expected_ids = [m[0] for m in spec['metrics'] if spec['caseId'] != 'tardias' or m[0] == 'A' or instant >= 10]
+            assert [row['id'] for row in current['jobs']] == expected_ids, (figure, instant, current)
+            for row in current['jobs']:
+                intervals = [s for s in spec['cpu'] if s[2] == row['id']]
+                demand = sum(end-start for start,end,_ in intervals)
+                used = sum(max(0, min(instant,end)-start) for start,end,_ in intervals)
+                assert row['used'] == used, (figure, instant, row)
+                assert row['left'] == f'Restan {demand} − {used} = {demand-used} {unit}', (figure, instant, row)
         assert current['results']
         labels = browser.execute("""
-          return [...document.querySelectorAll('#timeline text')].map(label => {
-            const matrix = label.getScreenCTM();
-            const fontSize = parseFloat(getComputedStyle(label).fontSize);
-            return {text: label.textContent, pixels: fontSize * Math.hypot(matrix.c, matrix.d)};
+          return [...document.querySelectorAll('#timeline text')].filter(n=>getComputedStyle(n).visibility==='visible').map(n=>{
+            const matrix=n.getScreenCTM();
+            return {text:n.textContent, pixels:parseFloat(getComputedStyle(n).fontSize)*Math.hypot(matrix.c,matrix.d)};
           });
         """)
-        assert all(label['pixels'] >= 11.9 for label in labels), ('Rótulos demasiado chicos', spec['figure'], labels)
-        expected_ids = [s[2] or '–' for s in spec['cpu'] + spec.get('disk', [])]
-        visible_ids = [label['text'] for label in labels if label['text'] in expected_ids]
-        assert visible_ids == expected_ids, ('Hay intervalos sin letra o marca de ocio', spec['figure'], visible_ids)
-        # Leer texto, sin usar las métricas internas de la aplicación como resultado esperado.
-        rows = browser.execute("return [...[...document.querySelectorAll('#results table')].at(-1).tBodies[0].rows].map(r=>[...r.cells].map(c=>c.textContent));")
+        assert all(label['pixels'] >= 11.9 for label in labels), (figure, labels)
+        expected_runs = []
+        for _, _, job in spec['cpu']:
+            symbol = job or '–'
+            if expected_runs[-1:] != [symbol]:
+                expected_runs.append(symbol)
+        expected_runs += [s[2] for s in spec.get('disk', [])]
+        visible = [label['text'] for label in labels if label['text'] in expected_runs]
+        assert visible == expected_runs, (figure, visible, expected_runs)
+        rows = browser.execute("return [...document.querySelector('#resultTables table').tBodies[0].rows].map(r=>[...r.cells].map(c=>c.textContent));")
         expected = []
         for name, first, finish, waiting in spec['metrics']:
             arrival = 10 if spec['caseId'] == 'tardias' and name != 'A' else 0
             expected.append(list(map(str, [name, arrival, first, finish, first-arrival, finish-arrival, waiting])))
-        assert rows == expected, (spec['figure'], rows, expected)
-        browser.click('#prev')
-        assert not snapshot(browser)['results']
-        browser.click('#next')
-        assert snapshot(browser)['results']
-        browser.click('#reset')
-        assert snapshot(browser)['event'].startswith('0/')
-        report['checks'].append('Figura ' + spec['figure'] + ': panel, fronteras, colas y métricas visibles')
+        assert rows == expected, (figure, rows, expected)
+        formulas = browser.execute("return [...document.querySelectorAll('.formula')].map(x=>x.textContent);")
+        totals = {
+            '7.1':['(10 + 20 + 30) / 3 = 20 s'], '7.2':['(100 + 110 + 120) / 3 = 110 s'],
+            '7.3':['(10 + 20 + 120) / 3 = 50 s'], '7.4':['103,33 s'],
+            '7.5':['[(120 − 0) + (20 − 10) + (30 − 10)] / 3 = 50 s'],
+            '7.6':['(0 + 5 + 10) / 3 = 5 s'], '7.7':['(0 + 1 + 2) / 3 = 1 s','(13 + 14 + 15) / 3 = 14 s'],
+            '7.8':['50 + (4 × 10) + 50 = 140 ms'], '7.9':['50 + (4 × 10) + 50 − 40 = 100 ms']
+        }
+        for text in totals[figure]:
+            assert any(text in formula for formula in formulas), (figure, formulas)
+        report['checks'].append('Figura ' + figure + ': llegadas, consumo, recursos, colas, intervalos y cuentas del apunte')
+    disclosure(browser, 'technical', False)
 
 
 def check_controls(browser, report):
-    report['stage'] = 'Cambiar el cuanto y restaurar la configuración original'
-    browser.select('#policy', 'RR')
-    browser.select('#case', 'terminales')
+    report['stage'] = 'Reproducción continua y color de los trabajos'
+    browser.select('#figure', '7.5')
+    wait_for(lambda: snapshot(browser)['t'] > 0, 'el reloj avanza al elegir una figura')
+    before = snapshot(browser)
+    wait_for(lambda: snapshot(browser)['jobs'][0]['fill'] > before['jobs'][0]['fill'] + 1, 'la parte clara de A crece durante el tramo')
+    browser.click('#play')
+    paused = snapshot(browser)
+    time.sleep(0.45)
+    assert snapshot(browser) == paused, 'Pausar debe conservar reloj, barras y cuentas'
+    browser.click('#play')
+    wait_for(lambda: snapshot(browser)['t'] > paused['t'], 'reanudar desde el tiempo observado')
+    report['checks'].append('Reproducción automática, consumo entre eventos, pausa y reanudación')
+
+    report['stage'] = 'Retorno observado y retroceso'
+    scrub(browser, 20)
+    assert '20 − 10 = 10 s' in browser.text('[data-metric="finish"] [data-for=B]')
+    assert 'Pendiente' in browser.text('[data-metric="finish"] [data-for=A]')
+    assert 'Pendiente' in browser.text('[data-metric="finish"] [data-for=C]')
+    scrub(browser, 35)
+    assert browser.text('.job[data-id=A] .used') == 'Ejecutó 10 + (35 − 30) = 15 s'
+    assert browser.text('.job[data-id=A] .wait') == 'Espera en listos 30 − 10 = 20 s'
+    assert browser.text('.job[data-id=A] .left') == 'Restan 100 − 15 = 85 s'
+    browser.click('#prev')
+    assert snapshot(browser)['t'] == 30
+    browser.click('#reset')
+    assert snapshot(browser)['t'] == 0
+    assert 'Pendiente' in browser.text('[data-for=B]') and len(snapshot(browser)['jobs']) == 1
+    browser.tab_to('next')
+    assert float(browser.execute('return getComputedStyle(document.activeElement).outlineWidth;').removesuffix('px')) > 0
+    browser.key('\ue007')
+    wait_for(lambda: snapshot(browser)['t'] == 10, 'Siguiente se detiene en 10 s')
+    browser.click('#seek')
+    browser.key('\ue011')  # Inicio
+    browser.key('\ue014')  # Flecha derecha
+    assert snapshot(browser)['t'] == 1
+    report['checks'].append('Figura 7.5 a 20 y 35 s, retroceso, reinicio y teclado')
+
+    report['stage'] = 'Segunda lectura de STCF y disco a 80 ms'
+    browser.select('#figure', 'respuesta')
+    scrub(browser, 10)
+    assert 'Pendiente' in browser.text('[data-metric="first"] [data-for=C]')
+    scrub(browser, 20)
+    assert '[(0 − 0) + (10 − 10) + (20 − 10)] / 3 ≈ 3,33 s' == browser.text('.formula')
+    browser.select('#figure', '7.9')
+    scrub(browser, 15)
+    assert snapshot(browser)['jobs'][0]['state'] == 'Espera E/S'
+    assert '5 ms coinciden' in browser.text('.io-detail')
+    scrub(browser, 80)
+    assert 'empatan en 10 ms' in browser.text('#decision') and 'Ejecuta A' in browser.text('#decision')
+    report['checks'].append('Sección 7.6 con la figura 7.5 y superposición de la figura 7.9')
+
+    report['stage'] = 'Explorar variantes y escribir una carga propia'
+    browser.select('#figure', '7.7')
+    disclosure(browser, 'settings', True)
     browser.fill('#q', '5')
     browser.key('\ue004')
-    assert browser.text('#chapterMode') == 'Variante del apunte', 'RR con cuanto 5 debe ser una variante'
-    browser.fill('#q', '1')
-    browser.key('\ue004')
-    assert browser.text('#chapterMode') == 'Configuración del apunte', 'RR con cuanto 1 debe recuperar la figura 7.7'
-    report['checks'].append('Cambiar el cuanto a 5 y volver a 1 actualiza la referencia del apunte')
-    report['stage'] = 'Reproducir y pausar'
-    browser.select('#speed', '1200')
-    browser.click('#play')
-    wait_for(lambda: not snapshot(browser)['event'].startswith('0/'), 'primer avance de reproducción')
-    browser.click('#play')
-    paused = snapshot(browser)['event']
-    time.sleep(1.5)
-    assert snapshot(browser)['event'] == paused, 'La reproducción avanzó después de pausar'
-    report['checks'].append('Reproducción y pausa')
-    report['stage'] = 'Avanzar con teclado'
-    browser.click('#reset')
-    browser.tab_to('next')
-    outline = browser.execute('return getComputedStyle(document.activeElement).outlineWidth;')
-    assert float(outline.removesuffix('px')) > 0, 'El foco de teclado no es visible'
+    assert browser.text('#chapterMode') == 'Variante del apunte'
+    browser.select('#figure', '7.5')
+    browser.select('#figure', '7.7')
+    assert browser.execute("return document.getElementById('q').value") == '1'
+    assert browser.text('#chapterMode') == 'Configuración del apunte'
+    browser.click('#q')
+    browser.tab_to('configBtn')
     browser.key('\ue007')
-    assert snapshot(browser)['event'].startswith('1/'), 'Enter sobre Siguiente debe avanzar un evento'
-    report['checks'].append('Tab, foco visible y avance con Enter')
-    report['stage'] = 'Editar y guardar una carga propia con teclado'
-    browser.tab_to('configBtn', backwards=True)
-    browser.key('\ue007')
-    assert browser.execute("return document.querySelector('dialog').open;")
     browser.tab_to('edit')
-    browser.fill('#edit', '0, 3\n2, 1\n2, 2')
+    browser.fill('#edit', '6, 2\n2, 1\n6, 2')
     browser.tab_to('save')
     browser.key('\ue007')
-    assert not browser.execute("return document.querySelector('dialog').open;")
-    assert browser.execute('return document.activeElement.id;') == 'configBtn', 'Guardar debe devolver el foco al botón de carga'
+    assert not browser.execute("return document.querySelector('dialog').open")
+    assert browser.execute('return document.activeElement.id') == 'configBtn'
     assert browser.text('#chapterMode') == 'Carga propia'
-    assert 'Sin figura asociada' in browser.text('#chapterConfiguration')
     browser.select('#policy', 'FIFO')
+    scrub(browser, 0)
+    assert not snapshot(browser)['jobs']
+    scrub(browser, 6)
+    assert [j['id'] for j in snapshot(browser)['jobs']] == ['B','A','C']
     browser.click('#end')
-    assert browser.text('#time') == 't = 6 s', 'La carga propia debe terminar en 6 s con FIFO'
-    report['checks'].append('Carga propia ingresada con teclado y ejecutada hasta el final')
-    report['stage'] = 'Cerrar el diálogo con Escape'
-    browser.tab_to('configBtn', backwards=True)
-    browser.key('\ue007')
+    assert snapshot(browser)['time'] == '10 s'
+    browser.click('#configBtn')
     browser.key('\ue00c')
-    assert not browser.execute("return document.querySelector('dialog').open;")
-    assert browser.execute('return document.activeElement.id;') == 'configBtn', 'Escape debe devolver el foco al botón de carga'
-    report['checks'].append('Escape cierra el diálogo y restaura el foco')
-    report['stage'] = 'Abrir un enlace directo'
-    browser.open('?sim=STCF&caso=tardias')
-    assert 'Figura 7.5:' in browser.text('#chapterReference')
-    report['checks'].append('Enlace directo a STCF con llegadas tardías')
+    assert not browser.execute("return document.querySelector('dialog').open")
+    assert browser.execute('return document.activeElement.id') == 'configBtn'
+    report['checks'].append('Selección de política, cuanto original, carga propia y foco del diálogo')
+
+    report['stage'] = 'Enlaces directos'
+    for query, ref in [('?sim=STCF&caso=tardias','Sección 7.5 · Figura 7.5'), ('?seccion=7.6','Sección 7.6 · Figura 7.5'),
+                       ('?figura=7.7','Sección 7.7 · Figura 7.7')]:
+        browser.open(query)
+        assert browser.text('#chapterReference') == ref
+    report['checks'].append('Apertura directa por figura, sección y combinación de política y carga')
 
 
 def main():
@@ -259,21 +331,21 @@ def main():
             browser.open()
             viewport = browser.execute('return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth};')
             report['viewports'].append(viewport)
-            name = f'firefox-{width}-inicio.png'
-            browser.screenshot(output/name)
-            report['screenshots'].append(name)
             assert viewport['width'] == width, ('Ancho solicitado y real distintos', width, viewport)
             assert viewport['scrollWidth'] <= width, ('Desborde horizontal', viewport)
+            assert browser.text('#chapterReference') == 'Sección 7.3 · Figura 7.1'
+            wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción inicial de la figura 7.1')
             check_figures(browser, report)
             check_controls(browser, report)
-            # Guardar la figura 7.5 cuando ya se ven el desalojo y los trabajos listos.
-            browser.click('#next')
-            browser.click('#next')
-            assert snapshot(browser)['time'] == 't = 10 s'
-            for label, selector in [('apunte', '.chapter'), ('simulacion', '.sim')]:
-                name = f'firefox-{width}-{label}.png'
-                browser.screenshot(output/name, selector)
-                report['screenshots'].append(name)
+            for figure, instant, label in [('7.1', 5, 'inicio'), ('7.5', 35, 'reanudacion'), ('7.9', 15, 'disco')]:
+                browser.select('#figure', figure)
+                scrub(browser, instant)
+                browser.execute('window.scrollTo(0,0)')
+                assert browser.execute('return document.documentElement.scrollWidth <= innerWidth')
+                for name, selector in [(label, None), (label+'-cuentas', '.accounts')]:
+                    filename = f'firefox-{width}-{name}.png'
+                    browser.screenshot(output/filename, selector)
+                    report['screenshots'].append(filename)
             resources = browser.execute("return performance.getEntriesByType('resource').map(r=>r.name);")
             assert all(url.startswith('file:') for url in resources), resources
             report['checks'].append(f'Apertura file:// y recursos locales a {width} px')
