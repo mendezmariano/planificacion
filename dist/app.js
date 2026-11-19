@@ -15,8 +15,11 @@
     '</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   const picker = el('figure');
   for (const r of readings) {
-    const name = r.key === 'respuesta' ? '§ 7.6 · Respuesta en la figura 7.5' : 'Figura '+r.number+' · '+r.title;
-    picker.add(new Option(name, r.key));
+    const policyName = r.policy === 'SERIE' ? 'E/S en serie' : r.policy;
+    const name = r.key === 'respuesta' ? '§ 7.6 · Respuesta en la figura 7.5' : 'Figura '+r.number+' · '+policyName+' · '+cases[r.caseId].name;
+    const option = new Option(name, r.key);
+    option.title = r.title;
+    picker.add(option);
   }
   const variantOption = new Option('Variante o carga propia', 'variante');
   variantOption.disabled = true;
@@ -167,6 +170,7 @@
     el('chapterAssumptions').textContent = context.assumptions;
     el('chapterNote').textContent = context.note;
     el('chapterNote').hidden = !context.note;
+    el('jobOrder').textContent = 'En orden de llegada'+(result.diskSegments.length ? ' · las barras miden ejecución de CPU' : '');
     el('axisUnit').textContent = '('+work.unit+')';
     el('seek').max = result.end;
     const next = reading && readings[readings.findIndex(r => r.key === reading)+1];

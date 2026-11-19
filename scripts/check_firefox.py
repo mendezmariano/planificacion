@@ -178,7 +178,7 @@ def check_figures(browser, report):
         formulas = browser.execute("return [...document.querySelectorAll('.formula')].map(x=>x.textContent);")
         totals = {
             '7.1':['(10 + 20 + 30) / 3 = 20 s'], '7.2':['(100 + 110 + 120) / 3 = 110 s'],
-            '7.3':['(10 + 20 + 120) / 3 = 50 s'], '7.4':['103,33 s'],
+            '7.3':['(10 + 20 + 120) / 3 = 50 s'], '7.4':['[100 + (110 − 10) + (120 − 10)] / 3 ≈ 103,33 s'],
             '7.5':['[(120 − 0) + (20 − 10) + (30 − 10)] / 3 = 50 s'],
             '7.6':['(0 + 5 + 10) / 3 = 5 s'], '7.7':['(0 + 1 + 2) / 3 = 1 s','(13 + 14 + 15) / 3 = 14 s'],
             '7.8':['50 + (4 × 10) + 50 = 140 ms'], '7.9':['50 + (4 × 10) + 50 − 40 = 100 ms']
@@ -243,6 +243,12 @@ def check_controls(browser, report):
 
     report['stage'] = 'Explorar variantes y escribir una carga propia'
     browser.select('#figure', '7.7')
+    browser.select('#speed', '4')
+    wait_for(lambda: snapshot(browser)['results'], 'RR termina sus 15 turnos en reproducción automática', timeout=12)
+    assert snapshot(browser)['time'] == '15 s'
+    assert browser.text('[data-metric="finish"] .formula') == '(13 + 14 + 15) / 3 = 14 s'
+    browser.select('#speed', '1')
+    report['checks'].append('RR reproduce de principio a fin y completa los dos promedios')
     disclosure(browser, 'settings', True)
     browser.fill('#q', '5')
     browser.key('\ue004')

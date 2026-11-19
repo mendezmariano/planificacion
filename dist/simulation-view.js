@@ -54,7 +54,7 @@
     };
   }
 
-  function metricHTML(jobs, field, unit, showDifferences) {
+  function metricHTML(jobs, field, unit, differences) {
     const response = field === 'first';
     const title = response ? 'Tiempo de respuesta' : 'Tiempo de retorno';
     const definition = (response ? 'Primera ejecución' : 'Finalización')+' − llegada';
@@ -65,8 +65,9 @@
       const difference = known ? j[field]+' − '+j.arrival : '';
       if (known) values.push(j[field]-j.arrival);
       const value = known ? String(j[field]-j.arrival) : '…';
-      const term = known && showDifferences ? '('+difference+')' : value;
-      terms.push('<span class="term" title="Trabajo '+j.id+'">'+term+'</span>');
+      const expand = differences === 'all' || (differences === 'late' && j.arrival !== 0);
+      const term = known && expand ? '('+difference+')' : value;
+      terms.push('<span class="term" data-id="'+j.id+'" title="Trabajo '+j.id+'">'+term+'</span>');
       const description = known ? difference+' = <b>'+value+' '+unit+'</b>' : '<span class="pending">Pendiente</span>';
       return '<li data-for="'+j.id+'">'+letter(j.id)+'<span>'+description+'</span></li>';
     });
@@ -74,7 +75,7 @@
     const sum = values.reduce((a,b) => a+b, 0);
     const op = (sum*100) % jobs.length === 0 ? ' = ' : ' ≈ ';
     const result = complete ? op+fmt(sum/jobs.length)+' '+unit : '';
-    const brackets = showDifferences ? ['[',']'] : ['(',')'];
+    const brackets = differences ? ['[',']'] : ['(',')'];
     const mean = brackets[0]+terms.join(' + ')+brackets[1]+' / '+jobs.length+result;
     return '<section class="metric" data-metric="'+field+'"><h3>'+title+'</h3><p class="definition">'+definition+'</p>'+
       '<ul class="terms">'+lines.join('')+'</ul><div class="sum"><small>Promedio · '+values.length+' de '+jobs.length+
@@ -91,7 +92,7 @@
     if (completed.length) contributions.push(completed.length+' × '+(completed[0].end-completed[0].start));
     if (current) contributions.push('('+fmt(s.time)+' − '+current.start+')');
     const io = s.jobs.reduce((sum, j) => sum + j.io.total, 0);
-    const diskTerm = contributions.length ? '('+contributions.join(' + ')+')' : '0';
+    const diskTerm = completed.length ? '('+contributions.join(' + ')+')' : contributions[0] ?? '0';
     const terms = [fmt(s.jobs[0].cpu.total), diskTerm, fmt(s.jobs[1].cpu.total)];
     const total = terms.join(' + ')+(s.overlap > 0 ? ' − '+fmt(s.overlap) : '');
     return '<section class="metric" data-metric="lote"><h3>Tiempo del lote</h3>'+
@@ -103,8 +104,8 @@
   }
 
   function makeCalculations(work, result, context, reading) {
-    const io = work.unit === 'ms';
-    const response = reading === 'respuesta' || work === root.CpuLab.cases.terminales;
+    const io = result.diskSegments.length > 0;
+    const response = reading === 'respuesta' || context.figure === '7.6' || context.figure === '7.7';
     el('accountContext').textContent = io ? 'Ejecución y E/S · milisegundos' :
       response ? 'Desde el primer turno de cada trabajo' : 'Desde la llegada hasta el fin de cada trabajo';
     let lastIndex = -1;
@@ -116,7 +117,9 @@
       else {
         // El libro escribe la suma de 7.3 en el orden B, C, A.
         const jobs = context.figure === '7.3' ? [...s.jobs].sort((a,b) => a.demand-b.demand) : s.jobs;
-        const differences = jobs.some(j => j.arrival > 0);
+        // En 7.4 el apunte simplifica el término de A. En 7.5 deja visibles las tres restas.
+        let differences = jobs.some(j => j.arrival > 0) ? 'all' : null;
+        if (context.figure === '7.4') differences = 'late';
         html = response ? metricHTML(jobs, 'first', work.unit, differences) : '';
         if (!response || (reading !== 'respuesta' && jobs.every(j => j.first !== null))) {
           html += metricHTML(jobs, 'finish', work.unit, differences);

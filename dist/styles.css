@@ -71,8 +71,7 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
 .left { margin-left: auto; font-size: 14px; font-weight: 720; font-variant-numeric: tabular-nums; }
 .track { height: 11px; background: #f1efe5; border-radius: 3px; margin: 7px 0; }
 .bar { height: 100%; min-width: 2px; border: 1px solid #63716b; border-radius: 3px; overflow: hidden; background: var(--tone); }
-.bar-fill { height: 100%; border-right: 1px solid #647777; }
-.bar-fill[style="width: 0%;"] { border: 0; }
+.bar-fill { height: 100%; box-shadow: inset -1px 0 #647777; }
 .job-meta { justify-content: space-between; align-items: baseline; font-size: 12px; line-height: 1.4; color: #424e4e; font-variant-numeric: tabular-nums; }
 #noJobs { padding: 20px; color: var(--muted); }
 .event { margin-top: 5px; background: #fff2bd; border-block: 1px solid #ded19a; display: flex; align-items: baseline; gap: 12px; padding: 12px 21px; }
@@ -100,7 +99,11 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
 .sum { margin-top: 12px; padding: 11px 13px; border-left: 3px solid #4e889f; background: #eef5f5; }
 .sum small { display: block; margin-bottom: 5px; color: #365d6b; font-weight: 650; }
 .formula { font: 650 14px/1.55 var(--mono); overflow-wrap: anywhere; }
-.formula .term { white-space: nowrap; }
+.formula .term { display: inline-block; vertical-align: top; text-align: center; white-space: nowrap; }
+.formula .term::after {
+  content: attr(data-id); display: block; border-top: 2px solid var(--tone);
+  font: 700 11px/1.35 var(--mono); color: #465b64;
+}
 .io-detail { margin-top: 12px; font-size: 13px; line-height: 1.45; }
 #results { margin-block: 17px; padding: 18px 20px; }
 #results h3, #technical h3, dialog h3 { font-size: 15px; margin: 14px 0 5px; }
