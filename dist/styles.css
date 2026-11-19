@@ -23,3 +23,6 @@
   .chapter { padding: 13px; }
   .chapterbody { grid-template-columns: 1fr; gap: 12px; }
 }
+@media (max-width: 560px) {
+  .config #prepare { padding-inline: 5px; height: auto; min-height: 38px; }
+}

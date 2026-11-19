@@ -16,13 +16,15 @@ Abrí http://localhost:8000. Para probar el motor con Node.js 18 o posterior:
 node --test test/*.test.js
 ```
 
-Para verificar la interfaz en Firefox, necesitás Python 3, Node.js, Firefox y geckodriver disponibles en tu equipo:
+Para verificar la interfaz, necesitás Firefox, geckodriver, Python 3.9 o posterior y una versión de Node.js con WebSocket integrado, como la 20.20.
 
 ```bash
 python3 scripts/check_firefox.py --output-dir /tmp/planificacion-firefox-review
 ```
 
-Si los ejecutables no están en `PATH`, indicá `--firefox /ruta/a/firefox` y `--geckodriver /ruta/a/geckodriver`. Agregá `--headed` para ver la ventana durante el recorrido. El verificador abre `dist/index.html` como archivo local, restringe el acceso a Internet mediante un proxy inaccesible en el perfil temporal y recorre las nueve figuras, los controles, una carga propia y la navegación por teclado a 1280 y 360 px. Guarda `report.json`, el registro de geckodriver y capturas para revisión visual. Requiere permiso para abrir un puerto local; un informe fallido no acredita la validación.
+Si los ejecutables están fuera de `PATH`, indicá `--firefox /ruta/a/firefox` y `--geckodriver /ruta/a/geckodriver`. Agregá `--headed` para ver el recorrido. WebDriver usa un puerto local para controlar Firefox.
+
+La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, los controles, una carga propia y la navegación por teclado a 1280 y 360 px de ancho. Guarda `report.json`, las capturas y `geckodriver.log` en el directorio indicado.
 
 ## Recorrido
 

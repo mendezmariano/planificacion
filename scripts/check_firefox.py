@@ -44,9 +44,12 @@ class Firefox:
 
     def fill(self, selector, value):
         element = self.element(selector)
-        # Reemplazar como al escribir: clear() dispara change con el campo vacío
-        # y puede activar la recuperación del último valor válido de la aplicación.
-        self.request('POST', '/element/' + element + '/value', {'text': '\ue009a\ue000' + value})
+        if not self.execute('return document.activeElement === document.querySelector(arguments[0]);', selector):
+            self.click(selector)
+        # Soltar Ctrl antes de escribir. Enviar todo como una cadena a Gecko puede
+        # dejar Ctrl activo y convertir el primer dígito en un atajo de teclado.
+        self.key('a', modifier='\ue009')
+        self.request('POST', '/element/' + element + '/value', {'text': value})
         actual = self.execute('return document.querySelector(arguments[0]).value;', selector)
         assert actual == value, f'{selector}: se quiso escribir {value!r}, quedó {actual!r}'
 
@@ -55,15 +58,17 @@ class Firefox:
         assert option, (selector, value)
         self.request('POST', '/element/' + option[ELEMENT] + '/click', {})
 
-    def key(self, key):
-        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': [
-            {'type': 'keyDown', 'value': key}, {'type': 'keyUp', 'value': key}]}]})
+    def key(self, key, modifier=None):
+        keys = [modifier, key] if modifier else [key]
+        actions = [{'type': 'keyDown', 'value': k} for k in keys]
+        actions.extend({'type': 'keyUp', 'value': k} for k in reversed(keys))
+        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': actions}]})
 
-    def tab_to(self, element_id):
+    def tab_to(self, element_id, backwards=False):
         for _ in range(60):
-            if self.execute('return document.activeElement.id;') == element_id:
+            if self.execute('return document.hasFocus() && document.activeElement.id === arguments[0];', element_id):
                 return
-            self.key('\ue004')
+            self.key('\ue004', modifier='\ue008' if backwards else None)
         raise AssertionError('No se alcanza con Tab: ' + element_id)
 
     def text(self, selector):
@@ -121,6 +126,17 @@ def check_figures(browser, report):
             assert current['disk'] == ([] if disk is None else [disk]), (spec['figure'], current)
             assert current['ready'] == list(spec['ready'][i]), (spec['figure'], current)
         assert current['results']
+        labels = browser.execute("""
+          return [...document.querySelectorAll('#timeline text')].map(label => {
+            const matrix = label.getScreenCTM();
+            const fontSize = parseFloat(getComputedStyle(label).fontSize);
+            return {text: label.textContent, pixels: fontSize * Math.hypot(matrix.c, matrix.d)};
+          });
+        """)
+        assert all(label['pixels'] >= 11.9 for label in labels), ('Rótulos demasiado chicos', spec['figure'], labels)
+        expected_ids = [s[2] or '–' for s in spec['cpu'] + spec.get('disk', [])]
+        visible_ids = [label['text'] for label in labels if label['text'] in expected_ids]
+        assert visible_ids == expected_ids, ('Hay intervalos sin letra o marca de ocio', spec['figure'], visible_ids)
         # Leer texto, sin usar las métricas internas de la aplicación como resultado esperado.
         rows = browser.execute("return [...[...document.querySelectorAll('#results table')].at(-1).tBodies[0].rows].map(r=>[...r.cells].map(c=>c.textContent));")
         expected = []
@@ -166,7 +182,7 @@ def check_controls(browser, report):
     assert snapshot(browser)['event'].startswith('1/'), 'Enter sobre Siguiente debe avanzar un evento'
     report['checks'].append('Tab, foco visible y avance con Enter')
     report['stage'] = 'Editar y guardar una carga propia con teclado'
-    browser.tab_to('configBtn')
+    browser.tab_to('configBtn', backwards=True)
     browser.key('\ue007')
     assert browser.execute("return document.querySelector('dialog').open;")
     browser.tab_to('edit')
@@ -182,7 +198,7 @@ def check_controls(browser, report):
     assert browser.text('#time') == 't = 6 s', 'La carga propia debe terminar en 6 s con FIFO'
     report['checks'].append('Carga propia ingresada con teclado y ejecutada hasta el final')
     report['stage'] = 'Cerrar el diálogo con Escape'
-    browser.tab_to('configBtn')
+    browser.tab_to('configBtn', backwards=True)
     browser.key('\ue007')
     browser.key('\ue00c')
     assert not browser.execute("return document.querySelector('dialog').open;")
@@ -226,14 +242,20 @@ def main():
         # El proxy inaccesible impide que la página dependa de recursos de Internet.
         prefs = {'network.proxy.type': 1, 'network.proxy.http': '127.0.0.1', 'network.proxy.http_port': 9,
                  'network.proxy.ssl': '127.0.0.1', 'network.proxy.ssl_port': 9, 'network.proxy.no_proxies_on': ''}
-        session = browser.request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'firefox',
+        session = browser.request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'firefox', 'webSocketUrl': True,
             'moz:firefoxOptions': {'binary': args.firefox, 'args': [] if args.headed else ['-headless'], 'prefs': prefs}}}}, session=False)
         browser.session = session['sessionId']
         report['browser'] = session['capabilities']['browserName'] + ' ' + session['capabilities']['browserVersion']
         browser.request('POST', '/timeouts', {'implicit': 2000, 'pageLoad': 15000, 'script': 10000})
+        handle = browser.request('GET', '/window')
         for width in [1280, 360]:
             report['stage'] = 'Preparar pantalla de ' + str(width) + ' px'
             browser.request('POST', '/window/rect', {'width': width, 'height': 1000})
+            viewport_command = ['node', '--experimental-websocket', str(ROOT/'scripts/firefox_viewport.mjs'),
+                                session['capabilities']['webSocketUrl'], handle, str(width), '900']
+            sized = subprocess.run(viewport_command, capture_output=True, text=True, timeout=15)
+            if sized.returncode:
+                raise RuntimeError(f'Firefox no pudo fijar el área de contenido en {width} px: {sized.stderr.strip()}')
             browser.open()
             viewport = browser.execute('return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth};')
             report['viewports'].append(viewport)
@@ -244,6 +266,10 @@ def main():
             assert viewport['scrollWidth'] <= width, ('Desborde horizontal', viewport)
             check_figures(browser, report)
             check_controls(browser, report)
+            # Guardar la figura 7.5 cuando ya se ven el desalojo y los trabajos listos.
+            browser.click('#next')
+            browser.click('#next')
+            assert snapshot(browser)['time'] == 't = 10 s'
             for label, selector in [('apunte', '.chapter'), ('simulacion', '.sim')]:
                 name = f'firefox-{width}-{label}.png'
                 browser.screenshot(output/name, selector)

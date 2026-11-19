@@ -50,25 +50,31 @@
     el('chapterNote').hidden=!context.note;
     render();
   }
-  function traceSvg(now) {
-    // Una única escala para CPU y disco. Las marcas se dibujan con texto HTML en pantallas chicas.
-    const extent=result.end, X=64, W=832, pos=t=>X+W*t/extent;
+  function drawTimeline() {
+    const container = el('timeline');
+    const width = container.clientWidth;
+    if (!width) return;
+    const now = result.frames[step-1]?.t ?? 0;
+    const extent = result.end;
+    const left = 46; // Espacio para los nombres de CPU y disco, en píxeles CSS.
+    const plotWidth = Math.max(0, width-left-20);
+    const pos = t => left + plotWidth*t/extent;
     const lanes = work.jobs.some(j=>j.bursts.length>1)?[['CPU',result.cpuSegments],['Disco',result.diskSegments]]:[['CPU',result.cpuSegments]];
     const height = lanes.length*28+28;
-    let svg='<svg class="timeline" viewBox="0 0 920 '+height+'" role="img" aria-label="Línea de tiempo hasta '+now+' '+work.unit+'. Los intervalos exactos están en Mirar debajo del capó.">';
+    let svg='<svg class="timeline" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Línea de tiempo hasta '+now+' '+work.unit+'. Los intervalos exactos están en Mirar debajo del capó.">';
     lanes.forEach(([name,list],idx)=>{
       const y=idx*28+3;
-      svg+='<text x="0" y="'+(y+17)+'" font-size="14" font-weight="bold">'+name+'</text><rect x="'+X+'" y="'+y+'" width="'+W+'" height="23" fill="#eeeae0" stroke="#b7b1a4"/>';
+      svg+='<text x="0" y="'+(y+17)+'" font-size="14" font-weight="bold">'+name+'</text><rect x="'+left+'" y="'+y+'" width="'+plotWidth+'" height="23" fill="#eeeae0" stroke="#b7b1a4"/>';
       for(const s of list){
         if(s.start>=now) break;
         const end=Math.min(now,s.end),w=pos(end)-pos(s.start);
         svg+='<rect x="'+pos(s.start)+'" y="'+y+'" width="'+w+'" height="23" fill="'+(colors[s.id]||'#faf8f1')+'" stroke="#423f3c" stroke-width=".8"><title>'+name+' · '+(s.id||'ociosa')+' · ['+s.start+', '+end+') '+work.unit+'</title></rect>';
-        if(w>16) svg+='<text text-anchor="middle" x="'+((pos(s.start)+pos(end))/2)+'" y="'+(y+16)+'" font-size="14" font-weight="bold">'+(s.id||'–')+'</text>';
+        if(w>=12) svg+='<text text-anchor="middle" x="'+((pos(s.start)+pos(end))/2)+'" y="'+(y+16)+'" font-size="14" font-weight="bold">'+(s.id||'–')+'</text>';
       }
     });
     const ticks=[...new Set([0,Math.round(extent/4),Math.round(extent/2),Math.round(extent*3/4),extent])];
     for(const t of ticks)svg+='<text x="'+pos(t)+'" y="'+(height-4)+'" text-anchor="middle" font-size="12">'+t+'</text>';
-    return svg+'</svg>';
+    container.innerHTML=svg+'</svg>';
   }
   function compare(){
     const rows=['FIFO','SJF','STCF','RR',...(which==='disco'?['SERIE']:[])].map(p=>{
@@ -94,7 +100,7 @@
     el('cpu').innerHTML=f?.cpu?badge(f.cpu):empty(done?'En reposo':f?'Ociosa':'Por elegir');
     el('disk').innerHTML=f?.disk?badge(f.disk):empty('Libre');
     el('time').textContent='t = '+now+' '+work.unit;
-    el('timeline').innerHTML=traceSvg(now);
+    drawTimeline();
     el('loadline').textContent=work.jobs.map(j=>j.id+' ('+j.arrival+'; '+j.bursts.join('/')+')').join('   ·   ')+'   —   (llegada; ráfagas) en '+work.unit;
     el('eventnum').textContent=step+'/'+result.frames.length;
     el('decision').textContent=f?f.decision:'¿Quién debería usar la CPU primero?';
@@ -139,4 +145,5 @@
   };
   dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
   configure();
+  new ResizeObserver(drawTimeline).observe(el('timeline'));
 })();
