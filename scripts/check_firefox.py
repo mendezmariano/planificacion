@@ -44,9 +44,14 @@ class Firefox:
 
     def fill(self, selector, value):
         element = self.element(selector)
-        # Reemplazar como al escribir: clear() dispara change con el campo vacío
-        # y puede activar la recuperación del último valor válido de la aplicación.
-        self.request('POST', '/element/' + element + '/value', {'text': '\ue009a\ue000' + value})
+        if not self.execute('return document.activeElement === document.querySelector(arguments[0]);', selector):
+            self.click(selector)
+        # Soltar Ctrl antes de escribir. Enviar todo como una cadena a Gecko puede
+        # dejar Ctrl activo y convertir el primer dígito en un atajo de teclado.
+        self.request('POST', '/actions', {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': [
+            {'type': 'keyDown', 'value': '\ue009'}, {'type': 'keyDown', 'value': 'a'},
+            {'type': 'keyUp', 'value': 'a'}, {'type': 'keyUp', 'value': '\ue009'}]}]})
+        self.request('POST', '/element/' + element + '/value', {'text': value})
         actual = self.execute('return document.querySelector(arguments[0]).value;', selector)
         assert actual == value, f'{selector}: se quiso escribir {value!r}, quedó {actual!r}'
 
