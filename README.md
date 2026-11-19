@@ -32,7 +32,7 @@ La carga propia permite de uno a seis trabajos de CPU con llegadas arbitrarias. 
 
 ## Continuar con Codex
 
-Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés instalado Codex CLI. Las decisiones de diseño, convenciones y criterios de aceptación están en **AGENTS.md**. **DESARROLLO.md** incluye encargos concretos para iterar sin perder la correspondencia con el capítulo.
+Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés instalado Codex CLI. Las decisiones de diseño, convenciones y criterios de aceptación están en [AGENTS.md](AGENTS.md). [DESARROLLO.md](DESARROLLO.md) incluye el backlog priorizado, los enlaces a los issues y encargos concretos para iterar sin perder la correspondencia con el capítulo.
 
 - `dist/engine.js` modela las políticas y produce una traza independiente de la interfaz.
 - `dist/app.js` muestra estados, controles, guía, teoría y métricas.
