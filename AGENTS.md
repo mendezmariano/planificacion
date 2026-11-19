@@ -1,6 +1,6 @@
 # Desarrollo del laboratorio de planificación
 
-El público es alumnado de Sistemas Operativos de FIUBA. Escribí las consignas en español rioplatense. Conservá el recorrido del laboratorio de memoria virtual: menú de laboratorios, carga/preparación, predicción, avance por eventos, retroceso, reproducción, explicación contextual y detalle técnico consultable. Mantené el fondo crema, la cabecera celeste y los acentos por trabajo, siempre con letras visibles además del color.
+El público es alumnado de Sistemas Operativos de FIUBA. Escribí las explicaciones en español rioplatense. Cada figura se reproduce sola desde la primera llegada hasta la última finalización. El color de cada trabajo se aclara en proporción a su ejecución. Formá las cuentas con los intervalos observados en el reloj. Conservá el menú, la preparación de cargas, el avance por eventos, el retroceso, la pausa y el detalle técnico consultable. Mantené el fondo crema, la cabecera celeste y los acentos por trabajo, siempre con letras visibles además del color.
 
 ## Contrato del motor
 

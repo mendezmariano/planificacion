@@ -1,6 +1,6 @@
 # Turno de CPU
 
-Laboratorio web de planificación para Sistemas Operativos. El estudiante predice qué proceso se ejecutará, avanza hasta la próxima decisión y contrasta respuesta y retorno sobre la misma carga. Implementa el capítulo 7, *Scheduling: Introduction*, de Remzi H. y Andrea C. Arpaci-Dusseau, *Operating Systems: Three Easy Pieces*, v1.10.
+Laboratorio web de planificación para Sistemas Operativos de FIUBA. Reproduce las nueve figuras del capítulo 7 de *Operating Systems: Three Easy Pieces*, de Remzi H. y Andrea C. Arpaci-Dusseau, v1.10. Cada trabajo aparece cuando llega. El reloj muestra cómo se consume su duración y cómo se forman las cuentas del apunte.
 
 ## Abrir para dar clase
 
@@ -28,9 +28,11 @@ La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Rec
 
 ## Recorrido
 
-Elegí la política en el menú superior y la carga en «Explorá un ejemplo». Avanzá con «Siguiente». Cada paso muestra el estado **después** de resolver los eventos del instante indicado. El Gantt muestra los intervalos ya transcurridos. Al final se comparan las políticas y se desglosan las métricas por trabajo.
+Al abrir el laboratorio empieza la figura 7.1. Elegí otra en **Ejercicio del apunte** para reproducirla con sus valores originales. La sección 7.6 vuelve a la figura 7.5 para calcular la respuesta. La parte clara de cada barra representa el tiempo ya ejecutado. Durante la espera, la barra conserva su avance.
 
-El panel «En el apunte» muestra la sección, figura, supuestos y consigna antes de avanzar. «Configuración del apunte» identifica una de las nueve figuras; «Variante del apunte» indica otra combinación de política o cuanto sobre la misma carga. Las cargas propias se muestran sin figura asociada. En cada ejemplo se indican las configuraciones necesarias para reproducir el apunte.
+Pausá la simulación o mové **Recorrer el tiempo** para examinar un instante. **Anterior** y **Siguiente** recorren las decisiones. Al retroceder también se restauran las cuentas. Por ejemplo, en la figura 7.5, a los 35 s, A lleva `10 + (35 − 30) = 15 s` de ejecución y le quedan 85 s. B y C ya tienen retorno, y el de A sigue pendiente.
+
+En **Explorar otra carga o política** podés cambiar los trabajos, la política o el cuanto. El encabezado identifica la figura original, la variante o la carga propia. **Mirar debajo del capó** abre el detalle de colas, ráfagas e intervalos observados.
 
 | Ejemplo | Entrada | Qué comprobar |
 | --- | --- | --- |
@@ -40,18 +42,20 @@ El panel «En el apunte» muestra la sección, figura, supuestos y consigna ante
 | Tres terminales | 5 s cada una, llegan en 0 | RR con q = 1 da respuesta 1 s y retorno 14 s |
 | CPU y disco | A alterna 5 ráfagas de CPU con 4 E/S; B usa 50 ms de CPU | En serie, 140 ms; con STCF por ráfaga, 100 ms |
 
-La carga propia permite de uno a seis trabajos de CPU con llegadas arbitrarias. El ejemplo de disco usa milisegundos. La vista técnica expone las ráfagas y el registro exacto de intervalos. Para abrir directamente un escenario, agregá por ejemplo `?sim=STCF&caso=tardias` o `?sim=RR&caso=terminales` al final de la URL del laboratorio.
+La carga propia permite de uno a seis trabajos de CPU con llegadas arbitrarias. El ejemplo de disco usa milisegundos. Para abrir una figura, agregá por ejemplo `?figura=7.5` al final de la URL del laboratorio. Usá `?seccion=7.6` para su lectura de respuesta. También se admiten enlaces como `?sim=STCF&caso=tardias`.
 
 ## Continuar con Codex
 
 Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés instalado Codex CLI. Las decisiones de diseño, convenciones y criterios de aceptación están en [AGENTS.md](AGENTS.md). [DESARROLLO.md](DESARROLLO.md) incluye el backlog priorizado, los enlaces a los issues y encargos concretos para iterar sin perder la correspondencia con el capítulo.
 
 - `dist/engine.js` modela las políticas y produce una traza independiente de la interfaz.
-- `dist/chapter.js` relaciona las cargas y políticas con las figuras y consignas del capítulo 7.
-- `dist/app.js` muestra estados, controles, guía, teoría y métricas.
+- `dist/chapter.js` relaciona las cargas y políticas con las lecturas del capítulo.
+- `dist/trace.js` calcula qué parte de cada intervalo ya transcurrió al leer el reloj.
+- `dist/app.js` controla la reproducción y `dist/simulation-view.js` dibuja los trabajos, la línea de tiempo y las cuentas.
 - `dist/index.html` y `dist/styles.css` forman el recurso estático.
 - `test/engine.test.js` comprueba intervalos, colas, estados y métricas de las nueve figuras, fronteras con eventos simultáneos y conservación del tiempo por trabajo.
 - `test/fixtures/chapter7.js` contiene los intervalos y resultados esperados del apunte, calculados sin ejecutar el motor.
 - `test/chapter.test.js` comprueba la correspondencia con el apunte y la identificación de variantes.
+- `test/trace.test.js` comprueba el consumo, la espera, la respuesta y el retorno en instantes intermedios y al retroceder.
 
 Para distribuir la web en un alojamiento estático, copiá el **contenido** de `dist/` a la raíz que se vaya a publicar. La aplicación usa rutas relativas y admite subdirectorios. El repositorio de paginación es la referencia de interacción y diseño: https://mendezmariano.github.io/memoria-virtual/. Libro: https://pages.cs.wisc.edu/~remzi/OSTEP/.

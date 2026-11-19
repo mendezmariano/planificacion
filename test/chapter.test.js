@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {contextFor} = require('../dist/chapter.js');
+const {contextFor, readings} = require('../dist/chapter.js');
 const {cases} = require('../dist/engine.js');
 
 // Configuraciones de las figuras del apunte, independientes de los datos de la vista.
@@ -16,17 +16,26 @@ const figures = [
   ['disco', 'STCF', 1, '7.9', '7.8']
 ];
 
-test('Las nueve figuras tienen sección, consigna y supuestos', () => {
+test('El índice abre las nueve figuras del apunte en orden con sus datos y supuestos', () => {
+  assert.deepEqual(readings.filter(r => r.key === r.number).map(r => r.number), figures.map(f => f[3]));
   for (const [caseId, policy, q, figure, section] of figures) {
     const context = contextFor(caseId, policy, q);
     assert.equal(context.kind, 'original');
     assert.equal(context.figure, figure);
     assert.ok(context.reference.startsWith('Sección '+section));
-    assert.ok(context.reference.includes('Figura '+figure+':'));
-    assert.ok(context.question.trim().length > 0);
+    assert.ok(context.reference.includes('Figura '+figure));
+    assert.ok(context.load.length && context.title.length);
     assert.ok(context.assumptions.includes('costo cero'));
     assert.ok(context.configuration.includes('figura '+figure));
   }
+});
+
+test('La sección 7.6 vuelve a la figura 7.5 para introducir la respuesta', () => {
+  const i = readings.findIndex(r => r.key === 'respuesta');
+  assert.deepEqual(readings.slice(i-1,i+2).map(r => r.key), ['7.5','respuesta','7.6']);
+  const r = readings[i];
+  assert.equal(contextFor(r.caseId,r.policy,1,r.key).reference, 'Sección 7.6 · Figura 7.5');
+  assert.equal(contextFor('tardias','SJF',1,r.key).figure, '7.4');
 });
 
 test('Cambiar política o cuanto distingue una variante de una figura original', () => {
