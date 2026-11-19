@@ -73,8 +73,8 @@
     });
     const complete = values.length === jobs.length;
     const sum = values.reduce((a,b) => a+b, 0);
-    const op = (sum*100) % jobs.length === 0 ? ' = ' : ' ≈ ';
-    const result = complete ? op+fmt(sum/jobs.length)+' '+unit : '';
+    const op = (sum*100) % jobs.length === 0 ? '=' : '≈';
+    const result = complete ? ' <span class="mean-value">'+op+' '+fmt(sum/jobs.length)+' '+unit+'</span>' : '';
     const brackets = differences ? ['[',']'] : ['(',')'];
     const mean = brackets[0]+terms.join(' + ')+brackets[1]+' / '+jobs.length+result;
     return '<section class="metric" data-metric="'+field+'"><h3>'+title+'</h3><p class="definition">'+definition+'</p>'+

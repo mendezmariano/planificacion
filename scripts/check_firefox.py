@@ -185,6 +185,7 @@ def check_figures(browser, report):
         }
         for text in totals[figure]:
             assert any(text in formula for formula in formulas), (figure, formulas)
+        assert browser.execute("return [...document.querySelectorAll('.mean-value')].every(n => n.getClientRects().length === 1)"), figure
         report['checks'].append('Figura ' + figure + ': llegadas, consumo, recursos, colas, intervalos y cuentas del apunte')
     disclosure(browser, 'technical', False)
 
