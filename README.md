@@ -40,7 +40,8 @@ Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés in
 - `dist/chapter.js` relaciona las cargas y políticas con las figuras y consignas del capítulo 7.
 - `dist/app.js` muestra estados, controles, guía, teoría y métricas.
 - `dist/index.html` y `dist/styles.css` forman el recurso estático.
-- `test/engine.test.js` comprueba las nueve figuras, casos límite y conservación del tiempo de CPU.
+- `test/engine.test.js` comprueba intervalos, colas, estados y métricas de las nueve figuras, fronteras con eventos simultáneos y conservación del tiempo por trabajo.
+- `test/fixtures/chapter7.js` contiene los intervalos y resultados esperados del apunte, calculados sin ejecutar el motor.
 - `test/chapter.test.js` comprueba la correspondencia con el apunte y la identificación de variantes.
 
 Para distribuir la web en un alojamiento estático, copiá el **contenido** de `dist/` a la raíz que se vaya a publicar. La aplicación usa rutas relativas y admite subdirectorios. El repositorio de paginación es la referencia de interacción y diseño: https://mendezmariano.github.io/memoria-virtual/. Libro: https://pages.cs.wisc.edu/~remzi/OSTEP/.
