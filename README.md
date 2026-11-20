@@ -4,14 +4,16 @@ Laboratorio web de planificación para Sistemas Operativos de FIUBA. Reproduce l
 
 ## Abrir para dar clase
 
-Descomprimí el ZIP completo y abrí **dist/index.html** en Firefox, Chrome o Edge. El enlace **Apunte del capítulo 7 (PDF)** al pie del laboratorio abre el texto en otra pestaña. Dejá juntas las carpetas `dist/` y `recursos/` para usar el laboratorio y el apunte sin Internet.
+Podés abrir la versión 1.0.0 en el navegador o descargarla para usarla sin conexión. [Abrir el simulador](https://raw.githack.com/mendezmariano/planificacion/4bef5f638a2bd559d73be9eb84bc4e288d76d72c/dist/index.html) · [Descargar v1.0.0 en ZIP](https://github.com/mendezmariano/planificacion/archive/refs/tags/v1.0.0.zip)
+
+Descomprimí el ZIP completo. Entrá en la carpeta **planificacion-1.0.0** y abrí **dist/index.html** en Firefox, Chrome o Edge. El enlace **Apunte del capítulo 7 (PDF)** al pie del laboratorio abre el texto en otra pestaña. Dejá juntas las carpetas `dist/` y `recursos/` para usar el laboratorio y el apunte sin Internet.
 
 La guía docente relaciona las 13 láminas con las figuras e incluye los datos para reproducir en el simulador la actividad de STCF. [Guía del material de clase](recursos/guia-docente.md)
 
-Para armar el paquete con la versión confirmada en Git, ejecutá este comando desde la raíz del repositorio.
+Para armar el paquete de clase de v1.0.0 con `dist/` y `recursos/` en la raíz del ZIP, ejecutá este comando desde el repositorio. Usá `HEAD` en lugar de `v1.0.0` para empaquetar el último commit de tu copia.
 
 ```bash
-TZ=UTC git archive --format=zip --output=turno-de-cpu-clase.zip HEAD dist recursos
+TZ=UTC git archive --format=zip --output=turno-de-cpu-clase.zip v1.0.0 dist recursos
 ```
 
 Para usar un servidor local, ejecutá este comando desde la misma carpeta.
