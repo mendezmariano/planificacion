@@ -72,7 +72,8 @@
       const busy = rows.reduce((sum, job) => sum + job.cpu.total, 0);
       const completedSwitches = lastAt(switches, time, 'end') + 1;
       const switchTime = completedSwitches * (result.switchCost ?? 0) + (frame.switching ? time - frame.switching.start : 0);
-      return {time, index, frame, jobs:rows, busy, completedSwitches, switchTime,
+      const sliceRemaining = frame.sliceRemaining == null ? null : frame.sliceRemaining - (time-frame.t);
+      return {time, index, frame, jobs:rows, busy, completedSwitches, switchTime, sliceRemaining,
         idle:elapsedAt(idle, time).total, overlap:elapsedAt(overlap, time).total};
     }
     return {at, cpuRuns};

@@ -406,11 +406,13 @@ def check_experiment(browser, report, output, width):
     wait_for(lambda: snapshot(browser)['t'] == 13, 'B empieza después del cambio')
     assert snapshot(browser)['cpu'] == 'B'
     assert browser.text('[data-metric=cambios] .formula') == '1 × 3 = 3 ms'
+    scrub(browser, 16)
+    assert '10 − 3 = 7 ms de cuanto' in browser.text('[data-metric=cambios] .definition')
     report['checks'].append('Cambio A → B con E/S simultánea, cuenta parcial, retroceso y avance por teclado y eventos')
 
     browser.fill('#cpuCount', '6')
     browser.click('#applyExperiment')
-    assert 'entre 1 y 6' in browser.text('#experimentError') and snapshot(browser)['t'] == 13
+    assert 'entre 1 y 6' in browser.text('#experimentError') and snapshot(browser)['t'] == 16
     browser.fill('#cpuCount', '1')
     browser.fill('#ioCount', '2')
     browser.fill('#slice', '5')

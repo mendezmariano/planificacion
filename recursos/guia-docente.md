@@ -12,6 +12,8 @@ Las 13 láminas de Sistemas Operativos de FIUBA acompañan la lectura de *Operat
 | 10 y 11 | Sección 7.8 · figuras 7.8 y 7.9 | Los tiempos están en milisegundos. El lote dura 140 ms en el ejemplo en serie y 100 ms cuando B aprovecha los 40 ms de E/S de A. |
 | 12 y 13 | Carga propia con STCF · secciones 7.5 y 7.9 | La actividad agrega otra carga. B llega a los 2 s, ejecuta de 2 a 3 s, espera a C y vuelve de 4 a 6 s. Su retorno es 4 s y el retorno medio de la carga es 17/3 ≈ 5,67 s. |
 
+Para acompañar la lámina 9, abrí el experimento de Round Robin. Con los valores iniciales, A pide disco a los 10 ms. Entre los 10 y los 11 ms el disco atiende a A mientras la CPU cambia de A a B. En 11 ms empieza la primera ejecución de B. Podés repetir el recorrido con otra cantidad de procesos, otro cuanto y otro costo. [Simular el costo del cambio de contexto](../dist/index.html?experimento=contexto)
+
 Para reproducir las dos últimas láminas, elegí **STCF** en **Explorar otra carga o política**. Abrí **Ver o editar carga** e ingresá las filas en este orden.
 
 ```text

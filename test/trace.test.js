@@ -80,6 +80,9 @@ test('El reloj forma y deshace la cuenta del cambio incluso si el disco termina 
   const free = readTrace(inputs,simulate(inputs,'RR',2));
   assert.equal(free.at(1).completedSwitches,1);
   assert.equal(free.at(1).switchTime,0);
+  assert.equal(free.at(2.5).sliceRemaining,0.5);
+  assert.equal(trace.at(2.5).sliceRemaining,null);
+  assert.equal(trace.at(4).sliceRemaining,2);
   const alone = readTrace([inputs[0]],simulate([inputs[0]],'RR',1,3));
   assert.deepEqual([alone.at(1.5).busy,alone.at(1.5).switchTime,alone.at(1.5).idle],[1,0,0.5]);
 });

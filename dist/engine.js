@@ -87,7 +87,8 @@
       if (switching) decision = 'Cambio de contexto de '+switching.from+' a '+switching.to+'. '+switching.to+' espera para empezar su turno.';
       if (!decision && cpu) decision = 'Continúa ' + cpu.id + (policy === 'STCF' ? ': conserva la prioridad por tiempo restante y desempate.' : policy === 'RR' ? ': todavía dispone de cuanto.' : ': conserva la CPU hasta terminar su ráfaga.');
       if (!decision) decision = finished === jobs.length ? 'Todos los trabajos terminaron.' : policy === 'SERIE' && ready.length ? 'La CPU queda ociosa aunque hay un trabajo listo. El ejemplo en serie espera al trabajo anterior.' : 'La CPU queda ociosa hasta el siguiente evento.';
-      frames.push({t, cpu:cpu?.id ?? null, switching, disk:disk?.id ?? null, ready:ready.map(j=>j.id), notes, decision, jobs:jobs.map(j=>({id:j.id,state:j.state,remaining:j.state==='terminado'?0:j.state==='bloqueado'?null:j.remaining,first:j.first,finish:j.finish,wait:j.wait}))});
+      const sliceRemaining = policy === 'RR' && cpu ? budget : null;
+      frames.push({t, cpu:cpu?.id ?? null, switching, sliceRemaining, disk:disk?.id ?? null, ready:ready.map(j=>j.id), notes, decision, jobs:jobs.map(j=>({id:j.id,state:j.state,remaining:j.state==='terminado'?0:j.state==='bloqueado'?null:j.remaining,first:j.first,finish:j.finish,wait:j.wait}))});
       if (finished === jobs.length) break;
       const nextArrival = Math.min(...jobs.filter(j=>j.state==='nuevo').map(j=>j.arrival),Infinity);
       const nextTime = Math.min(nextArrival, diskEnd, switching?.end ?? Infinity, cpu ? t + Math.min(cpu.remaining, budget) : Infinity);

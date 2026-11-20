@@ -108,11 +108,12 @@
       '. De ese tiempo, '+fmt(s.overlap)+' '+unit+' coinciden con la ejecución de B.</p></section>';
   }
 
-  function switchHTML(s, cost) {
+  function switchHTML(s, cost, quantum) {
     const change = s.frame.switching;
     const partial = change ? ' + ('+fmt(s.time)+' − '+change.start+')' : '';
     const action = change ? 'Cambio de '+change.from+' a '+change.to+' desde '+change.start+' ms. '+change.to+' sigue en listos.'+(s.frame.disk ? ' El disco atiende a '+s.frame.disk+'.' : '') :
-      s.frame.cpu ? 'La CPU ejecuta '+s.frame.cpu+'.' : s.jobs.every(j => j.finish !== null) ? 'El lote terminó.' : 'La CPU espera un trabajo listo.';
+      s.frame.cpu ? 'Ejecuta '+s.frame.cpu+'. Le quedan '+quantum+' − '+fmt(quantum-s.sliceRemaining)+' = '+fmt(s.sliceRemaining)+' ms de cuanto.' :
+      s.jobs.every(j => j.finish !== null) ? 'El lote terminó.' : 'La CPU espera un trabajo listo.';
     const share = s.time ? fmt(100*s.switchTime/s.time)+' %' : 'Pendiente';
     return '<section class="metric" data-metric="cambios"><h3>Tiempo en cambios de contexto</h3>'+
       '<p class="definition">'+action+'</p><div class="sum"><small>'+s.completedSwitches+
@@ -128,7 +129,7 @@
   function makeCalculations(work, result, context, reading, quantum) {
     if (context.kind === 'experiment') {
       el('accountContext').textContent = 'Round Robin · cuanto de '+quantum+' ms · costo por cambio de '+result.switchCost+' ms';
-      return s => { el('calculations').innerHTML = switchHTML(s, result.switchCost); };
+      return s => { el('calculations').innerHTML = switchHTML(s, result.switchCost, quantum); };
     }
     const io = result.diskSegments.length > 0;
     const response = reading === 'respuesta' || context.figure === '7.6' || context.figure === '7.7';

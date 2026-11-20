@@ -22,7 +22,7 @@
     option.title = r.title;
     picker.add(option);
   }
-  picker.add(new Option('Experimento · Costo del cambio de contexto', 'contexto'));
+  picker.add(new Option('RR · Costo del cambio de contexto', 'contexto'));
   const variantOption = new Option('Variante o carga propia', 'variante');
   variantOption.disabled = true;
   picker.add(variantOption);
