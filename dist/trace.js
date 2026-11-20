@@ -28,18 +28,21 @@
   function readTrace(inputs, result) {
     // Una misma ejecución puede atravesar varias fronteras, por ejemplo A en la figura 7.4.
     const jobs = inputs.map((input, index) => ({
-      id:input.id, arrival:input.arrival, index,
+      id:input.id, arrival:input.arrival, index, usesDisk:input.bursts.length > 1,
       demand:input.bursts.reduce((sum, value, i) => sum + (i % 2 === 0 ? value : 0), 0),
       cpu:[], ready:[], io:[]
     }));
-    const overlap = [];
+    const overlap = [], idle = [];
+    const switches = result.switches ?? [];
     const cpuRuns = [];
-    result.cpuSegments.forEach(({start, end, id}, index) => {
+    result.cpuSegments.forEach((segment, index) => {
+      const {start, end, id, switching} = segment;
       const frame = result.frames[index];
       const run = cpuRuns.at(-1);
-      if (run && run.id === id) run.end = end;
-      else cpuRuns.push({start, end, id});
+      if (run && run.id === id && run.switching === switching) run.end = end;
+      else cpuRuns.push({...segment});
       if (frame.cpu && frame.disk) record(overlap, start, end);
+      if (!id && !switching) record(idle, start, end);
       for (const job of jobs) {
         const state = frame.jobs[job.index].state;
         if (state === 'ejecutando') record(job.cpu, start, end);
@@ -61,13 +64,17 @@
         const cpu = elapsedAt(job.cpu, time);
         const burst = state.state === 'ejecutando' ? state.remaining - (time - frame.t) : state.remaining;
         return {
-          id:job.id, arrival:job.arrival, demand:job.demand, state:state.state,
+          id:job.id, arrival:job.arrival, demand:job.demand, usesDisk:job.usesDisk, state:state.state,
           first:state.first, finish:state.finish, burst,
           cpu, left:job.demand - cpu.total, wait:elapsedAt(job.ready, time), io:elapsedAt(job.io, time)
         };
       });
       const busy = rows.reduce((sum, job) => sum + job.cpu.total, 0);
-      return {time, index, frame, jobs:rows, idle:time - busy, overlap:elapsedAt(overlap, time).total};
+      const completedSwitches = lastAt(switches, time, 'end') + 1;
+      const switchTime = completedSwitches * (result.switchCost ?? 0) + (frame.switching ? time - frame.switching.start : 0);
+      const sliceRemaining = frame.sliceRemaining == null ? null : frame.sliceRemaining - (time-frame.t);
+      return {time, index, frame, jobs:rows, busy, completedSwitches, switchTime, sliceRemaining,
+        idle:elapsedAt(idle, time).total, overlap:elapsedAt(overlap, time).total};
     }
     return {at, cpuRuns};
   }

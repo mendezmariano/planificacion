@@ -36,11 +36,11 @@ python3 scripts/check_firefox.py --output-dir /tmp/planificacion-firefox-review
 
 Si los ejecutables están fuera de `PATH`, indicá `--firefox /ruta/a/firefox` y `--geckodriver /ruta/a/geckodriver`. Agregá `--headed` para ver el recorrido. WebDriver usa un puerto local para controlar Firefox.
 
-La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, los controles, una carga propia, la navegación por teclado y el PDF a 1280 y 360 px de ancho. Para verificar el ZIP, extraelo en una carpeta nueva y agregá `--lab-root /ruta/al/paquete/extraido` al comando. El informe `report.json`, las capturas y `geckodriver.log` quedan en el directorio indicado con `--output-dir`.
+La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, el experimento de cambio de contexto, los controles, una carga propia, la navegación por teclado y el PDF a 1280 y 360 px de ancho. Para verificar el ZIP, extraelo en una carpeta nueva y agregá `--lab-root /ruta/al/paquete/extraido` al comando. El informe `report.json`, las capturas y `geckodriver.log` quedan en el directorio indicado con `--output-dir`.
 
 ## Recorrido
 
-Al abrir el laboratorio empieza la figura 7.1. Elegí otra en **Ejercicio del apunte** para reproducirla con sus valores originales. La sección 7.6 vuelve a la figura 7.5 para calcular la respuesta. La parte clara de cada barra representa el tiempo ya ejecutado. Durante la espera, la barra conserva su avance.
+Al abrir el laboratorio empieza la figura 7.1. Elegí otra en **Ejercicio o experimento** para reproducirla con sus valores originales. La sección 7.6 vuelve a la figura 7.5 para calcular la respuesta. La parte clara de cada barra representa el tiempo ya ejecutado. Durante la espera, la barra conserva su avance.
 
 La reproducción empieza a **0,25×**. En la figura 7.7, cada turno de 1 s dura 4 segundos en pantalla. En **Velocidad** podés bajar a **0,1×** o acelerar el recorrido. El ajuste también se aplica a **Siguiente**.
 
@@ -59,6 +59,14 @@ En **Explorar otra carga o política** podés cambiar los trabajos, la política
 | CPU y disco | A alterna 5 ráfagas de CPU con 4 E/S; B usa 50 ms de CPU | En serie, 140 ms; con STCF por ráfaga, 100 ms |
 
 La carga propia permite de uno a seis trabajos de CPU con llegadas arbitrarias. El ejemplo de disco usa milisegundos. Para abrir una figura, agregá por ejemplo `?figura=7.5` al final de la URL del laboratorio. Usá `?seccion=7.6` para su lectura de respuesta. También se admiten enlaces como `?sim=STCF&caso=tardias`.
+
+## Experimento de cambio de contexto
+
+Elegí **RR · Costo del cambio de contexto** en el menú. Podés combinar de uno a seis procesos de los dos tipos de la sección 7.8. Cada proceso necesita 50 ms de CPU. Los que usan disco reparten esos 50 ms en cinco ráfagas e intercalan cuatro operaciones de E/S de 10 ms. Todos llegan juntos. [Abrir el experimento](dist/index.html?experimento=contexto)
+
+Elegí el cuanto de Round Robin (1 a 300 ms) y el costo de cada cambio (0 a 300 ms). **Aplicar y reproducir** inicia la nueva corrida. El Gantt marca cada cambio con **CC**. Mientras pasa ese intervalo, los procesos listos acumulan espera y el disco sigue trabajando. El panel suma CPU útil, cambios y CPU ociosa hasta el instante que marca el reloj.
+
+Para ver el efecto del cuanto, probá con dos procesos solo CPU y 2 ms por cambio. Con un cuanto de 10 ms hay nueve cambios y el lote dura `100 + 9 × 2 = 118 ms`. Con 25 ms hay tres cambios y dura `100 + 3 × 2 = 106 ms`. En ambos casos se ejecutan los mismos 100 ms de trabajo.
 
 ## Continuar con Codex
 

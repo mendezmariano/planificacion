@@ -8,6 +8,8 @@ Un procesador, costo de cambio nulo, un disco FIFO. Los intervalos son [inicio, 
 
 La vista «E/S en serie» es el testigo de la figura 7.8. Intencionalmente permite inactividad con B listo. No generalizar ese comportamiento a FIFO.
 
+El experimento de cambio de contexto usa RR y mide en milisegundos. Se cobra una vez cuando la CPU pasa directamente de un trabajo a otro, por vencimiento del cuanto, bloqueo o finalización. El primer despacho, la salida de un período ocioso y la renovación del cuanto del único trabajo listo cuestan cero. Durante el cambio, el próximo trabajo conserva su lugar al frente de listos y espera hasta empezar a ejecutar. El disco sigue atendiendo y las llegadas y desbloqueos ingresan al final de la cola en su instante real. El reloj suma CPU útil, cambios e inactividad.
+
 ## Criterios de aceptación
 
 Cada cambio del motor debe conservar las nueve figuras del capítulo, la secuencia de estados y los resultados de las pruebas. Una CPU solo ejecuta un proceso a la vez. Ningún trabajo bloqueado usa CPU. La espera en listos excluye E/S. Respuesta es primera ejecución menos llegada. Retorno es finalización menos llegada. Un dato desconocido en una traza parcial se muestra como tal.

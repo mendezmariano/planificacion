@@ -15,7 +15,7 @@
     return expression+' = '+fmt(span.total)+' '+unit;
   }
 
-  function makeJobs(inputs, unit) {
+  function makeJobs(inputs, unit, showProfile) {
     const maxDemand = Math.max(...inputs.map(j => j.demand));
     const nodes = new Map();
     el('jobs').replaceChildren();
@@ -25,7 +25,8 @@
       row.dataset.id = job.id;
       row.hidden = true;
       row.innerHTML = '<div class="job-head">'+letter(job.id)+'<strong class="state"></strong>'+
-        '<span class="arrival">Llegó en '+job.arrival+' '+unit+'</span><span class="left"></span></div>'+
+        '<span class="arrival">'+(showProfile ? (job.usesDisk ? 'CPU y E/S' : 'Solo CPU')+' · ' : '')+
+        'Llegó en '+job.arrival+' '+unit+'</span><span class="left"></span></div>'+
         '<div class="track"><div class="bar" role="progressbar" aria-label="Ejecución de '+job.id+
         '" aria-valuemin="0" aria-valuemax="'+job.demand+'" style="width:'+100*job.demand/maxDemand+'%">'+
         '<div class="bar-fill"></div></div></div>'+
@@ -107,7 +108,29 @@
       '. De ese tiempo, '+fmt(s.overlap)+' '+unit+' coinciden con la ejecución de B.</p></section>';
   }
 
-  function makeCalculations(work, result, context, reading) {
+  function switchHTML(s, cost, quantum) {
+    const change = s.frame.switching;
+    const partial = change ? ' + ('+fmt(s.time)+' − '+change.start+')' : '';
+    const action = change ? 'Cambio de '+change.from+' a '+change.to+' desde '+change.start+' ms. '+change.to+' sigue en listos.'+(s.frame.disk ? ' El disco atiende a '+s.frame.disk+'.' : '') :
+      s.frame.cpu ? 'Ejecuta '+s.frame.cpu+'. Le quedan '+quantum+' − '+fmt(quantum-s.sliceRemaining)+' = '+fmt(s.sliceRemaining)+' ms de cuanto.' :
+      s.jobs.every(j => j.finish !== null) ? 'El lote terminó.' : 'La CPU espera un trabajo listo.';
+    const share = s.time ? fmt(100*s.switchTime/s.time)+' %' : 'Pendiente';
+    return '<section class="metric" data-metric="cambios"><h3>Tiempo en cambios de contexto</h3>'+
+      '<p class="definition">'+action+'</p><div class="sum"><small>'+s.completedSwitches+
+      (s.completedSwitches === 1 ? ' cambio completo' : ' cambios completos')+' × '+cost+' ms'+(change ? ' + cambio en curso' : '')+
+      '</small><div class="formula">'+s.completedSwitches+' × '+cost+partial+' = '+fmt(s.switchTime)+' ms</div></div></section>'+
+      '<section class="metric" data-metric="reloj"><h3>Cómo se compone el reloj</h3>'+
+      '<dl class="clock-terms"><dt>CPU útil</dt><dd>'+fmt(s.busy)+' ms</dd><dt>Cambios de contexto</dt><dd>'+fmt(s.switchTime)+
+      ' ms</dd><dt>CPU ociosa</dt><dd>'+fmt(s.idle)+' ms</dd></dl><div class="sum"><small>Tiempo transcurrido</small>'+
+      '<div class="formula">'+fmt(s.busy)+' + '+fmt(s.switchTime)+' + '+fmt(s.idle)+' = '+fmt(s.time)+' ms</div></div>'+
+      '<p class="io-detail">Porcentaje del tiempo en cambios · <b>'+share+'</b></p></section>';
+  }
+
+  function makeCalculations(work, result, context, reading, quantum) {
+    if (context.kind === 'experiment') {
+      el('accountContext').textContent = 'Round Robin · cuanto de '+quantum+' ms · costo por cambio de '+result.switchCost+' ms';
+      return s => { el('calculations').innerHTML = switchHTML(s, result.switchCost, quantum); };
+    }
     const io = result.diskSegments.length > 0;
     const response = reading === 'respuesta' || context.figure === '7.6' || context.figure === '7.7';
     el('accountContext').textContent = io ? 'Ejecución y E/S · milisegundos' :
@@ -193,54 +216,72 @@
     const terminal = context.figure === '7.6' || context.figure === '7.7';
     const bookExtent = hasDisk ? 140 : terminal ? 30 : 120;
     const extent = context.figure ? bookExtent : result.end;
-    const spacing = context.figure ? (terminal ? 5 : 20) : Math.max(1, Math.ceil(extent/5));
-    const left = hasDisk ? 46 : 14;
+    const experimental = context.kind === 'experiment';
+    const shortest = experimental ? Math.min(...trace.cpuRuns.map(s => s.end-s.start)) : extent;
+    const margin = experimental ? Math.max(18,String(extent).length*4+5) : 16;
+    const left = hasDisk ? 46 : experimental ? margin : 14;
     const lanes = [{list:trace.cpuRuns, label:'CPU'}];
     if (hasDisk) lanes.push({list:result.diskSegments, label:'Disco'});
     const height = 35 + 23*lanes.length;
-    let width, plot, svg, marker;
-    const x = t => left + plot*t/extent;
+    let width, plot, svg, marker, origin, range;
+    const x = t => left + plot*(t-origin)/range;
 
-    function resize() {
-      width = Math.max(container.clientWidth, terminal ? 420 : 0);
-      plot = width-left-16;
+    function setWindow(time, measured) {
+      const plotWidth = Math.max(1, measured-left-margin);
+      // En el experimento un cambio breve sigue siendo legible aunque el lote dure miles de ms.
+      const visible = experimental ? Math.min(extent,Math.max(2,Math.floor(plotWidth/28))*shortest) : extent;
+      const step = Math.max(1,Math.floor(visible/2));
+      const start = Math.min(extent-visible,Math.max(0,Math.ceil((time-visible)/step)*step));
+      if (width === measured && origin === start) return;
+      width = measured;
+      plot = plotWidth;
+      range = visible;
+      origin = start;
       container.replaceChildren();
       svg = svgElement('svg', {width, height, role:'img'}, container);
-      for (let t=0; t<extent; t+=spacing) {
+      const slots = Math.max(2,Math.min(5,Math.floor(plot/(String(extent).length*8+18))));
+      const spacing = context.figure ? (terminal ? 5 : 20) : Math.max(1,Math.ceil(range/slots));
+      for (let t=origin; t<origin+range; t+=spacing) {
+        if (experimental && x(origin+range)-x(t) < String(extent).length*8+8) continue;
         svgElement('text', {x:x(t), y:height-4, 'font-size':12, 'text-anchor':'middle'}, svg, t);
       }
-      svgElement('text', {x:x(extent), y:height-4, 'font-size':12, 'text-anchor':'middle'}, svg, extent);
+      svgElement('text', {x:x(origin+range), y:height-4, 'font-size':12, 'text-anchor':'middle'}, svg, origin+range);
       lanes.forEach((lane,i) => {
         lane.y = 8+i*23;
         if (hasDisk) svgElement('text',{x:0,y:lane.y+15,'font-size':12},svg,lane.label);
         svgElement('rect',{x:left,y:lane.y,width:plot,height:19,fill:'#eeeee4',stroke:'#bfc0b1'},svg);
         lane.layer = svgElement('g',{},svg);
         lane.parts = [];
+        const first = lane.list.findIndex(span => span.end > origin);
+        lane.first = first < 0 ? lane.list.length : first;
       });
       marker = svgElement('line',{y1:3,y2:height-22,stroke:'#304d5a','stroke-width':1.5},svg);
     }
 
     function updatePart(part, span, time) {
       const end = Math.min(time, span.end);
-      const w = x(end)-x(span.start);
+      const startX = x(Math.max(span.start,origin));
+      const w = x(end)-startX;
       part.rect.setAttribute('width',w);
-      part.label.setAttribute('x',x(span.start)+w/2);
-      part.label.setAttribute('visibility',w >= 11 ? 'visible' : 'hidden');
-      part.title.textContent = (span.id || 'CPU ociosa')+' · ['+span.start+', '+fmt(end)+') '+unit;
+      part.label.setAttribute('x',startX+w/2);
+      part.label.setAttribute('visibility',w >= (span.switching ? 17 : 11) ? 'visible' : 'hidden');
+      const name = span.switching ? 'Cambio '+span.switching.from+' → '+span.switching.to : span.id || 'CPU ociosa';
+      part.title.textContent = name+' · ['+span.start+', '+fmt(end)+') '+unit;
     }
 
     return function drawTimeline(time) {
-      if (width !== Math.max(container.clientWidth, terminal ? 420 : 0)) resize();
+      setWindow(time,Math.max(container.clientWidth, terminal ? 420 : 0));
       for (const lane of lanes) {
-        const {parts,list,y} = lane;
-        while (parts.length && list[parts.length-1].start >= time) parts.pop().group.remove();
-        if (parts.length) updatePart(parts.at(-1),list[parts.length-1],time);
-        while (parts.length < list.length && list[parts.length].start < time) {
-          const span = list[parts.length];
-          const group = svgElement('g', span.id ? {'data-id':span.id} : {}, lane.layer);
-          const rect = svgElement('rect',{x:x(span.start),y,height:19,fill:span.id?'var(--tone)':'#faf8ef',stroke:'#4b5a5a','stroke-width':0.7},group);
+        const {parts,list,y,first} = lane;
+        while (parts.length && list[first+parts.length-1].start >= time) parts.pop().group.remove();
+        if (parts.length) updatePart(parts.at(-1),list[first+parts.length-1],time);
+        while (first+parts.length < list.length && list[first+parts.length].start < time) {
+          const span = list[first+parts.length];
+          const group = svgElement('g', span.id ? {'data-id':span.id} : span.switching ? {class:'switch-span'} : {}, lane.layer);
+          const fill = span.switching ? '#465464' : span.id ? 'var(--tone)' : '#faf8ef';
+          const rect = svgElement('rect',{x:x(Math.max(span.start,origin)),y,height:19,fill,stroke:'#4b5a5a','stroke-width':0.7},group);
           const title = svgElement('title',{},rect);
-          const label = svgElement('text',{y:y+14,'text-anchor':'middle','font-size':12,'font-weight':700},group,span.id || '–');
+          const label = svgElement('text',{y:y+14,'text-anchor':'middle','font-size':12,'font-weight':700},group,span.switching ? 'CC' : span.id || '–');
           const part = {group,rect,title,label};
           updatePart(part,span,time);
           parts.push(part);
