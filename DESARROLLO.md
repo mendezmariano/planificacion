@@ -12,7 +12,7 @@ Cada issue contiene los criterios de aceptación y las dependencias. Usá los is
 | [B02](https://github.com/mendezmariano/planificacion/issues/2) | Alta | Completar las pruebas de las nueve figuras | Comprobar intervalos, estados, métricas y fronteras con eventos simultáneos. |
 | [B03](https://github.com/mendezmariano/planificacion/issues/3) | Alta | Recorrido de las decisiones | El pedido de simulación continua reemplaza la propuesta inicial de predicción. Cada llegada, desalojo o fin se explica mientras corre el reloj. |
 | [B04](https://github.com/mendezmariano/planificacion/issues/4) | Alta | Validar el recorrido completo de la interfaz | Registrar pruebas de controles, teclado, pantalla angosta y apertura local sin red. |
-| [B05](https://github.com/mendezmariano/planificacion/issues/5) | Media | Guiar la comparación de métricas | Mostrar los términos de cada cuenta en el instante en que se conocen. |
+| [B05](https://github.com/mendezmariano/planificacion/issues/5) | Media | Guiar la comparación de métricas | Comparar las figuras por pares con el mismo reloj y formar los promedios a medida que se conocen sus términos. |
 | [B06](https://github.com/mendezmariano/planificacion/issues/6) | Media | Preparar la distribución para clase | Generar un paquete reproducible con el laboratorio y acceso local al apunte. |
 | [B07](https://github.com/mendezmariano/planificacion/issues/7) | Media | Automatizar las pruebas en GitHub | Ejecutar las pruebas del motor en cada push y pull request, con resultado visible. |
 | [B08](https://github.com/mendezmariano/planificacion/issues/8) | Media | Revisar los recursos complementarios | Revisar las láminas y la imagen del convoy antes de incorporarlas con referencias claras. |

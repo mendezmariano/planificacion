@@ -58,7 +58,33 @@
     };
   }
 
-  const api = {readings, contextFor};
+  // Las dos trazas llegan hasta el mismo instante y siguen el orden de las figuras del capítulo.
+  function comparisonNote(caseId, left, right, quantum) {
+    switch (caseId) {
+      case 'convoy':
+        return 'En FIFO, B y C esperan detrás de A. SJF elige primero las ráfagas cortas y reduce la espera de B y C.';
+      case 'tardias':
+        if (right.jobs[1].state === 'nuevo') return 'A es el único trabajo que llegó. SJF y STCF le dan la CPU.';
+        return 'Cuando llegan B y C, SJF deja que A termine su ráfaga. STCF desaloja a A y atiende primero a B y C.';
+      case 'terminales': {
+        const c = right.jobs[2];
+        if (right.jobs.every(j => j.finish !== null)) {
+          if (left.jobs.every((j, i) => j.finish === right.jobs[i].finish)) {
+            return 'Cada trabajo termina en su primer turno de RR. Los primeros usos y las finalizaciones coinciden con SJF.';
+          }
+          return 'Con RR, B y C reciben CPU antes. Al alternarse los tres trabajos, A y B terminan más tarde que con SJF. Por eso baja la respuesta media y sube el retorno medio.';
+        }
+        if (c.first !== null && left.jobs[2].first === null) {
+          return 'C ya recibió CPU con RR a los '+c.first+' s. En SJF todavía espera su primer turno. La respuesta de C con RR ya entra en la cuenta.';
+        }
+        return 'SJF deja que cada trabajo complete su ráfaga. RR le da al primero en la cola hasta '+quantum+' s de CPU por turno.';
+      }
+      case 'disco':
+        return 'En la figura 7.8, B espera mientras A usa el disco. En la 7.9, B puede ejecutar durante esa E/S. Cada intervalo compartido cuenta una sola vez en el tiempo del lote.';
+    }
+  }
+
+  const api = {figures, readings, contextFor, comparisonNote};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CpuChapter = api;
 })(globalThis);

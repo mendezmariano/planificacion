@@ -34,6 +34,8 @@ La reproducción empieza a **0,25×**. En la figura 7.7, cada turno de 1 s dura 
 
 Pausá la simulación o mové **Recorrer el tiempo** para examinar un instante. **Anterior** y **Siguiente** recorren las decisiones. Al retroceder también se restauran las cuentas. Por ejemplo, en la figura 7.5, a los 35 s, A lleva `10 + (35 − 30) = 15 s` de ejecución y le quedan 85 s. B y C ya tienen retorno, y el de A sigue pendiente.
 
+En **Comparación con la misma carga**, las dos figuras usan el mismo reloj. En las figuras 7.6 y 7.7, mirá qué pasa a los 2 s. Con RR ya se conoce la respuesta de los tres trabajos. Con SJF, B y C todavía esperan su primer turno. A los 15 s también podés comparar cuánto tardaron en terminar. En las figuras 7.8 y 7.9 el panel cuenta cuánto tiempo coinciden la CPU y el disco.
+
 En **Explorar otra carga o política** podés cambiar los trabajos, la política o el cuanto. El encabezado identifica la figura original, la variante o la carga propia. **Mirar debajo del capó** abre el detalle de colas, ráfagas e intervalos observados.
 
 | Ejemplo | Entrada | Qué comprobar |
