@@ -372,6 +372,85 @@ def check_comparison(browser, report):
     report['checks'].append('E/S en serie y STCF con el reloj limitado al fin de cada lote')
 
 
+def check_experiment(browser, report, output, width):
+    report['stage'] = 'Experimento de costo de cambio en Round Robin'
+    browser.open('?experimento=contexto')
+    assert browser.text('#chapterTitle') == 'Costo del cambio de contexto'
+    wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción al abrir el experimento')
+    browser.click('#reset')
+    disclosure(browser, 'technical', True)
+    browser.fill('#switchCost', '3')
+    browser.tab_to('applyExperiment')
+    browser.key('\ue007')
+    scrub(browser, 12)
+    current = snapshot(browser)
+    assert (current['cpu'], current['disk'], current['ready']) == ('Cambio A → B', 'A', 'B'), current
+    assert [j['used'] for j in current['jobs']] == [10, 0]
+    assert browser.text('[data-metric=cambios] .formula') == '0 × 3 + (12 − 10) = 2 ms'
+    assert browser.text('[data-metric=reloj] .formula') == '10 + 2 + 0 = 12 ms'
+    assert browser.execute("""return [...document.querySelectorAll('#timeline .switch-span text')]
+      .some(n => n.textContent === 'CC' && getComputedStyle(n).visibility === 'visible');""")
+    assert 'Cambio A → B' in browser.text('#techbody')
+    assert 'CPU y E/S' in browser.text('.job[data-id=A] .arrival')
+    assert 'Solo CPU' in browser.text('.job[data-id=B] .arrival')
+    assert browser.execute('return document.documentElement.scrollWidth <= innerWidth')
+    browser.execute('window.scrollTo(0,0)')
+    for label, selector in [('contexto', None), ('contexto-reloj', '.accounts')]:
+        filename = f'firefox-{width}-{label}.png'
+        browser.screenshot(output/filename, selector)
+        report['screenshots'].append(filename)
+    browser.click('#prev')
+    assert snapshot(browser)['t'] == 10
+    browser.select('#speed', '4')
+    browser.click('#next')
+    wait_for(lambda: snapshot(browser)['t'] == 13, 'B empieza después del cambio')
+    assert snapshot(browser)['cpu'] == 'B'
+    assert browser.text('[data-metric=cambios] .formula') == '1 × 3 = 3 ms'
+    report['checks'].append('Cambio A → B con E/S simultánea, cuenta parcial, retroceso y avance por teclado y eventos')
+
+    browser.fill('#cpuCount', '6')
+    browser.click('#applyExperiment')
+    assert 'entre 1 y 6' in browser.text('#experimentError') and snapshot(browser)['t'] == 13
+    browser.fill('#cpuCount', '1')
+    browser.fill('#ioCount', '2')
+    browser.fill('#slice', '5')
+    browser.fill('#switchCost', '2')
+    browser.click('#applyExperiment')
+    browser.click('#end')
+    assert len(snapshot(browser)['jobs']) == 3
+    assert browser.text('[data-metric=reloj] .formula') == '150 + 54 + 0 = 204 ms'
+    browser.fill('#ioCount', '0')
+    browser.fill('#cpuCount', '2')
+    browser.fill('#slice', '25')
+    browser.click('#applyExperiment')
+    browser.click('#end')
+    assert browser.text('[data-metric=reloj] .formula') == '100 + 6 + 0 = 106 ms'
+    comparison = browser.execute("""return [...document.querySelectorAll('#resultTables table')[1].tBodies[0].rows]
+      .map(r => [...r.cells].map(c => c.textContent));""")
+    assert comparison == [['0 ms','3','0 ms','100 ms','100 %'], ['2 ms','3','6 ms','106 ms','94,34 %']], comparison
+    browser.fill('#slice', '10')
+    browser.click('#applyExperiment')
+    browser.click('#end')
+    assert browser.text('[data-metric=reloj] .formula') == '100 + 18 + 0 = 118 ms'
+    browser.fill('#switchCost', '0')
+    browser.click('#applyExperiment')
+    browser.click('#end')
+    assert browser.text('[data-metric=cambios] .formula') == '9 × 0 = 0 ms'
+    assert snapshot(browser)['t'] == 100
+    browser.fill('#cpuCount', '0')
+    browser.fill('#ioCount', '1')
+    browser.fill('#switchCost', '2')
+    browser.click('#applyExperiment')
+    browser.click('#end')
+    assert browser.text('[data-metric=reloj] .formula') == '50 + 0 + 40 = 90 ms'
+    browser.select('#figure', '7.7')
+    browser.click('#end')
+    assert snapshot(browser)['time'] == '15 s'
+    browser.select('#figure', 'contexto')
+    assert browser.execute("return ['cpuCount','ioCount','slice','switchCost'].map(id=>document.getElementById(id).value);") == ['0','1','10','2']
+    report['checks'].append('Mezcla de procesos, carga inválida, dos cuantos, costo cero y un único proceso con disco')
+
+
 def check_chapter_pdf(browser):
     source = Path('recursos/Capitulo_7_Planificacion_ES.pdf')
     pdf = browser.lab_root / source
@@ -446,6 +525,7 @@ def main():
             check_figures(browser, report)
             check_controls(browser, report)
             check_comparison(browser, report)
+            check_experiment(browser, report, output, width)
             for figure, instant, label in [('7.1', 5, 'inicio'), ('7.5', 35, 'reanudacion'), ('7.9', 15, 'disco')]:
                 browser.select('#figure', figure)
                 scrub(browser, instant)

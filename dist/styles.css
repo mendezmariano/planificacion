@@ -35,6 +35,17 @@ h1 { font-size: clamp(28px, 3.1vw, 46px); line-height: 1.05; letter-spacing: -.0
 .picker { width: min(29%, 310px); flex: none; }
 .picker label, .config label, dialog label { display: grid; gap: 6px; }
 .picker select { margin-top: 6px; width: 100%; font-size: 14px; font-weight: 650; height: 39px; border-color: var(--ink); }
+#experiment { padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
+.experiment-inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; gap: 10px 16px; }
+.experiment-inputs label { display: grid; gap: 5px; font-size: 13px; font-weight: 650; }
+.experiment-inputs button { background: var(--blue); border: 1px solid var(--ink); }
+#experiment p, #switchKey { margin-top: 8px; font-size: 13px; line-height: 1.4; }
+#switchKey { color: var(--muted); }
+#switchKey b { padding: 1px 4px; font-family: var(--mono); }
+#switchKey b:first-child { color: #fff; background: #465464; }
+#switchKey span { margin-inline: 4px; }
+.clock-terms { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 8px; margin-block: 12px; font-size: 14px; }
+.clock-terms dd { text-align: right; font: 650 14px var(--mono); }
 .playbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; padding: 9px; margin-bottom: 17px; background: #efeddf; border-block: 1px solid #cfcdbd; }
 .playbar button, .secondary { padding: 8px 11px; border-radius: 5px; font-size: 13px; min-height: 35px; }
 .playbar button:hover:enabled, .top button:hover, .secondary:hover { background: #e1dfd2; }
@@ -85,6 +96,7 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
 #timeline { overflow-x: auto; }
 #timeline svg { display: block; max-width: none; }
 #timeline text { font-family: var(--mono); fill: var(--ink); }
+#timeline .switch-span text { fill: #fff; }
 .scrub { display: flex; align-items: center; gap: 12px; margin-top: 6px; color: var(--muted); font-size: 12px; }
 .scrub input { flex: 1; min-width: 40px; accent-color: #39718b; }
 .accounts .panel-head { background: #e6f2f5; }
@@ -139,6 +151,9 @@ dialog label { margin: 14px 0 4px; font-size: 14px; font-weight: 650; }
 dialog .close { float: right; margin: 0 0 10px 8px; }
 dialog #save { margin-top: 8px; }
 @media (max-width: 800px) {
+  .experiment-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .experiment-inputs label { align-content: end; }
+  .experiment-inputs button { justify-self: start; grid-column: 1 / -1; }
   .workspace { grid-template-columns: 1fr; }
   .chapter { flex-wrap: wrap; gap: 10px; }
   .picker { width: min(100%, 410px); }

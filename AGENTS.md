@@ -1,12 +1,14 @@
 # Desarrollo del laboratorio de planificación
 
-El público es alumnado de Sistemas Operativos de FIUBA. Escribí las consignas en español rioplatense. Conservá el recorrido del laboratorio de memoria virtual: menú de laboratorios, carga/preparación, predicción, avance por eventos, retroceso, reproducción, explicación contextual y detalle técnico consultable. Mantené el fondo crema, la cabecera celeste y los acentos por trabajo, siempre con letras visibles además del color.
+El público es alumnado de Sistemas Operativos de FIUBA. Escribí las explicaciones en español rioplatense. Cada figura se reproduce sola desde la primera llegada hasta la última finalización. El color de cada trabajo se aclara en proporción a su ejecución. Formá las cuentas con los intervalos observados en el reloj. Conservá el menú, la preparación de cargas, el avance por eventos, el retroceso, la pausa y el detalle técnico consultable. Mantené el fondo crema, la cabecera celeste y los acentos por trabajo, siempre con letras visibles además del color.
 
 ## Contrato del motor
 
 Un procesador, costo de cambio nulo, un disco FIFO. Los intervalos son [inicio, fin). Las ráfagas de cada trabajo alternan CPU y E/S. SJF y STCF usan la próxima ráfaga conocida; STCF compara lo que resta de la que ya corre. Con igual restante, el menor índice en la carga tiene prioridad. FIFO y RR respetan el orden de ingreso a listos. En una frontera se reconocen fin de ráfaga, llegadas en orden de carga, desbloqueo y vencimiento del cuanto, antes de elegir CPU. En la figura 7.9, A vuelve en t = 80 ms y empata en 10 ms con B; el desempate por índice despacha A.
 
 La vista «E/S en serie» es el testigo de la figura 7.8. Intencionalmente permite inactividad con B listo. No generalizar ese comportamiento a FIFO.
+
+El experimento de cambio de contexto usa RR y mide en milisegundos. Se cobra una vez cuando la CPU pasa directamente de un trabajo a otro, por vencimiento del cuanto, bloqueo o finalización. El primer despacho, la salida de un período ocioso y la renovación del cuanto del único trabajo listo cuestan cero. Durante el cambio, el próximo trabajo conserva su lugar al frente de listos y espera hasta empezar a ejecutar. El disco sigue atendiendo y las llegadas y desbloqueos ingresan al final de la cola en su instante real. El reloj suma CPU útil, cambios e inactividad.
 
 ## Criterios de aceptación
 

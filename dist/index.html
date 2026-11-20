@@ -25,8 +25,20 @@
         <h1 id="chapterTitle">Planificación</h1>
         <p id="chapterLoad"></p>
       </div>
-      <div class="picker"><label for="figure">Ejercicio del apunte</label><select id="figure"></select></div>
+      <div class="picker"><label for="figure">Ejercicio o experimento</label><select id="figure"></select></div>
     </section>
+
+    <form id="experiment" aria-label="Preparar el experimento de Round Robin" novalidate hidden>
+      <div class="experiment-inputs">
+        <label>Procesos solo CPU<input id="cpuCount" type="number" min="0" max="6" value="1" required></label>
+        <label>Procesos con E/S<input id="ioCount" type="number" min="0" max="6" value="1" required></label>
+        <label>Cuanto (time slice) en ms<input id="slice" type="number" min="1" max="300" value="10" required></label>
+        <label>Costo por cambio en ms<input id="switchCost" type="number" min="0" max="300" value="1" required></label>
+        <button type="submit" id="applyExperiment" class="secondary">Aplicar y reproducir</button>
+      </div>
+      <p>Elegí entre 1 y 6 procesos en total. Todos llegan en 0 ms. Los que usan disco ingresan primero a listos.</p>
+      <p id="experimentError" class="formerror" role="alert" hidden></p>
+    </form>
 
     <div class="playbar" role="group" aria-label="Controles de reproducción">
       <button id="play" class="primary">Pausar</button>
@@ -52,6 +64,7 @@
         <div class="trace">
           <h3>Línea de tiempo <span id="axisUnit"></span></h3>
           <div id="timeline"></div>
+          <p id="switchKey" hidden><b>CC</b> Cambio de contexto <span>·</span> <b>–</b> CPU ociosa</p>
           <label class="scrub" for="seek">Recorrer el tiempo<input type="range" id="seek" min="0" step="1" value="0"></label>
         </div>
       </section>

@@ -64,3 +64,22 @@ test('Carga propia con inactividad y llegadas fuera del orden de edición', () =
   assert.equal(trace.at(5).idle,4);
   assert.deepEqual(trace.at(6).jobs.map(j=>[j.id,j.state]),[['B','terminado'],['A','ejecutando'],['C','listo']]);
 });
+
+test('El reloj forma y deshace la cuenta del cambio incluso si el disco termina en el medio', () => {
+  const inputs = [{id:'A',arrival:0,bursts:[1,1,1]}, {id:'B',arrival:0,bursts:[2]}];
+  const r = simulate(inputs,'RR',2,3);
+  const trace = readTrace(inputs,r);
+  assert.deepEqual(trace.cpuRuns.filter(s => s.switching).map(s => [s.start,s.end]), [[1,4],[6,9]]);
+  for (const [t,cpu,changes,count] of [[10,4,6,2],[6.5,3,3.5,1],[4,1,3,1],[2.5,1,1.5,0],[1,1,0,0],[0,0,0,0]]) {
+    const s = trace.at(t);
+    assert.deepEqual([s.busy,s.switchTime,s.idle,s.completedSwitches],[cpu,changes,0,count]);
+    assert.equal(s.time,s.busy+s.switchTime+s.idle);
+  }
+  const [a,b] = trace.at(2.5).jobs;
+  assert.deepEqual([a.io.total,a.wait.total,b.wait.total,b.first],[1,0.5,2.5,null]);
+  const free = readTrace(inputs,simulate(inputs,'RR',2));
+  assert.equal(free.at(1).completedSwitches,1);
+  assert.equal(free.at(1).switchTime,0);
+  const alone = readTrace([inputs[0]],simulate([inputs[0]],'RR',1,3));
+  assert.deepEqual([alone.at(1.5).busy,alone.at(1.5).switchTime,alone.at(1.5).idle],[1,0,0.5]);
+});

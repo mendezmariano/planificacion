@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const {cases, simulate} = window.CpuLab;
+  const {cases, simulate, contextSwitchJobs} = window.CpuLab;
   const {readings, contextFor} = window.CpuChapter;
   const {fmt, makeJobs, makeCalculations, makeComparison, makeTimeline} = window.CpuView;
   const el = id => document.getElementById(id);
@@ -22,6 +22,7 @@
     option.title = r.title;
     picker.add(option);
   }
+  picker.add(new Option('Experimento · Costo del cambio de contexto', 'contexto'));
   const variantOption = new Option('Variante o carga propia', 'variante');
   variantOption.disabled = true;
   picker.add(variantOption);
@@ -33,6 +34,9 @@
   let policy, caseId, quantum = 1, reading;
   let playback = null;
   let request = null;
+  const experimentFields = ['cpuCount', 'ioCount', 'slice', 'switchCost'];
+  const readExperiment = () => Object.fromEntries(experimentFields.map(id => [id, el(id).valueAsNumber]));
+  let experiment = readExperiment();
 
   function describeEvent({frame, index}) {
     const current = frame.jobs.find(j => j.id === frame.cpu);
@@ -52,25 +56,34 @@
       const input = work.jobs.find(item => item.id === j.id);
       return [j.id, j.arrival, input.bursts.join(' / '), j.state, j.burst === null ? '—' : fmt(j.burst), fmt(j.wait.total)];
     });
+    const activity = (id, change) => change ? 'Cambio '+change.from+' → '+change.to : id || 'Ociosa';
     const intervals = list => list.filter(span => span.start < s.time).map(span =>
-      [span.start, fmt(Math.min(s.time, span.end)), span.id || 'Ociosa']);
+      [span.start, fmt(Math.min(s.time, span.end)), activity(span.id,span.switching)]);
     const listTable = list => list.length ? table(['Desde','Hasta','Trabajo'],list) : '<p>Todavía no hay intervalos transcurridos.</p>';
     el('techbody').innerHTML = '<h3>Estado en '+fmt(s.time)+' '+unit+'</h3><p>Cola de listos · <b id="ready">'+(s.frame.ready.join(', ') || 'Vacía')+
-      '</b>　 CPU · <b id="cpu">'+(s.frame.cpu || 'Ociosa')+'</b>　 Disco · <b id="disk">'+(s.frame.disk || 'Libre')+'</b></p>'+
+      '</b>　 CPU · <b id="cpu">'+activity(s.frame.cpu,s.frame.switching)+'</b>　 Disco · <b id="disk">'+(s.frame.disk || 'Libre')+'</b></p>'+
       table(['Trabajo','Llegada','Ráfagas','Estado','Ráfaga restante','Espera en listos'],rows)+
       '<h3>Intervalos de CPU ('+unit+')</h3>'+listTable(intervals(result.cpuSegments))+
       (result.diskSegments.length ? '<h3>Intervalos de disco ('+unit+')</h3>'+listTable(intervals(result.diskSegments)) : '');
   }
 
   function resultsHTML() {
+    const perJob = '<h3>Por trabajo ('+work.unit+')</h3>'+
+      table(['Trabajo','Llegada','Primer uso','Fin','Respuesta','Retorno','Espera en listos'],
+        result.metrics.map(j=>[j.id,j.arrival,j.first,j.finish,j.response,j.turnaround,j.wait]));
+    if (caseId === 'contexto') {
+      if (!result.switchCost) return perJob;
+      const free = simulate(work.jobs,'RR',quantum,0);
+      return perJob+'<h3>Misma carga y mismo cuanto de '+quantum+' ms</h3>'+
+        table(['Costo por cambio','Cambios','Tiempo en cambios','Fin del lote','CPU útil'],
+          [free,result].map(r => [r.switchCost+' ms',r.switches.length,r.switches.length*r.switchCost+' ms',r.end+' ms',fmt(r.utilization)+' %']));
+    }
     const rows = ['FIFO','SJF','STCF','RR',...(caseId === 'disco' ? ['SERIE'] : [])].map(p => {
       const r = p === policy ? result : simulate(work.jobs,p,quantum);
       const name = p === 'RR' ? 'RR (q = '+quantum+' '+work.unit+')' : p === 'SERIE' ? 'E/S en serie · figura 7.8' : p;
       return [name,fmt(r.response),fmt(r.turnaround),r.end,fmt(r.utilization)+' %'];
     });
-    return '<h3>Por trabajo ('+work.unit+')</h3>'+
-      table(['Trabajo','Llegada','Primer uso','Fin','Respuesta','Retorno','Espera en listos'],
-        result.metrics.map(j=>[j.id,j.arrival,j.first,j.finish,j.response,j.turnaround,j.wait]))+
+    return perJob+
       '<details class="details"><summary>Comparar políticas con esta carga</summary>'+
       table(['Política','Respuesta media ('+work.unit+')','Retorno medio ('+work.unit+')','Fin del lote ('+work.unit+')','CPU ocupada'],rows)+'</details>';
   }
@@ -149,7 +162,6 @@
   }
 
   function configure(requestedReading) {
-    stop();
     caseId = el('case').value;
     policy = el('policy').value;
     if (policy === 'SERIE') {
@@ -167,17 +179,46 @@
 
     work = caseId === 'propia' ? custom : cases[caseId];
     result = simulate(work.jobs,policy,quantum);
-    trace = window.CpuTrace.readTrace(work.jobs,result);
     context = contextFor(caseId,policy,quantum,requestedReading);
     reading = requestedReading === 'respuesta' && context.figure === '7.5' ? 'respuesta' : context.figure;
-    picker.value = reading || 'variante';
+    startScenario();
+  }
+
+  function startExperiment(values) {
+    const jobs = contextSwitchJobs(values.cpuCount, values.ioCount);
+    const run = simulate(jobs,'RR',values.slice,values.switchCost);
+    experiment = values;
+    for (const id of experimentFields) el(id).value = values[id];
+    el('experimentError').hidden = true;
+    caseId = 'contexto';
+    policy = 'RR';
+    quantum = values.slice;
+    reading = null;
+    work = {name:'Costo del cambio de contexto', unit:'ms', jobs};
+    result = run;
+    context = {
+      kind:'experiment', title:work.name, reference:'Secciones 7.7 y 7.8 · Experimento con Round Robin',
+      load:'Cada proceso solo CPU necesita una ráfaga de 50 ms. Cada proceso con E/S ejecuta cinco ráfagas de CPU de 10 ms y usa el disco 10 ms entre ráfagas.',
+      assumptions:'La CPU paga el costo al pasar directamente de un proceso a otro. El primer despacho, la salida de un período ocioso y la renovación del turno del mismo proceso cuestan cero. El disco puede avanzar durante el cambio.'
+    };
+    startScenario();
+  }
+
+  function startScenario() {
+    stop();
+    const experimental = caseId === 'contexto';
+    trace = window.CpuTrace.readTrace(work.jobs,result);
+    picker.value = experimental ? 'contexto' : reading || 'variante';
+    el('experiment').hidden = !experimental;
+    el('settings').hidden = experimental;
+    el('switchKey').hidden = !experimental;
     el('chapterTitle').textContent = context.title || work.name+' · '+policy;
     el('chapterReference').textContent = context.kind === 'custom' ? 'Carga propia · '+policy : context.reference;
-    el('chapterLoad').textContent = context.load+(policy === 'RR' ? ' El cuanto es de '+quantum+' '+work.unit+'.' : '');
-    el('chapterMode').textContent = context.mode;
-    el('chapterConfiguration').textContent = context.configuration;
+    el('chapterLoad').textContent = context.load+(policy === 'RR' && !experimental ? ' El cuanto es de '+quantum+' '+work.unit+'.' : '');
+    el('chapterMode').textContent = context.mode || '';
+    el('chapterConfiguration').textContent = context.configuration || '';
     el('chapterAssumptions').textContent = context.assumptions;
-    el('chapterNote').textContent = context.note;
+    el('chapterNote').textContent = context.note || '';
     el('chapterNote').hidden = !context.note;
     el('jobOrder').textContent = 'En orden de llegada'+(result.diskSegments.length ? ' · las barras miden ejecución de CPU' : '');
     el('axisUnit').textContent = '('+work.unit+')';
@@ -190,15 +231,16 @@
     }
     document.title = el('chapterTitle').textContent+' · Turno de CPU';
     snapshot = null;
-    drawJobs = makeJobs(trace.at(0).jobs, work.unit);
+    drawJobs = makeJobs(trace.at(0).jobs, work.unit, experimental);
     drawTimeline = makeTimeline(result,trace,context,work.unit);
-    drawCalculations = makeCalculations(work,result,context,reading);
+    drawCalculations = makeCalculations(work,result,context,reading,quantum);
     drawComparison = makeComparison(work,caseId,policy,quantum,reading);
     draw(0);
     playTo(result.end);
   }
 
   function selectReading(key) {
+    if (key === 'contexto') return startExperiment(experiment);
     const entry = readings.find(r => r.key === key);
     el('policy').value = entry.policy;
     el('case').value = entry.caseId;
@@ -208,6 +250,15 @@
   }
 
   picker.onchange = () => selectReading(picker.value);
+  el('experiment').onsubmit = event => {
+    event.preventDefault();
+    try {
+      startExperiment(readExperiment());
+    } catch (error) {
+      el('experimentError').textContent = error.message;
+      el('experimentError').hidden = false;
+    }
+  };
   el('policy').onchange = el('case').onchange = el('q').onchange = () => configure();
   el('play').onclick = () => {
     if (playback) { stop(); setPlayLabel(); }
@@ -268,7 +319,8 @@
 
   const params = new URLSearchParams(location.search);
   const key = params.get('seccion') === '7.6' ? 'respuesta' : params.get('figura');
-  if (readings.some(r => r.key === key)) selectReading(key);
+  if (params.get('experimento') === 'contexto') selectReading('contexto');
+  else if (readings.some(r => r.key === key)) selectReading(key);
   else if (params.has('sim') || params.has('caso')) {
     el('policy').value = Object.hasOwn(rules,params.get('sim')) ? params.get('sim') : 'FIFO';
     el('case').value = Object.hasOwn(cases,params.get('caso')) ? params.get('caso') : 'convoy';

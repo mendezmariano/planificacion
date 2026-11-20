@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {simulate, cases, cpuJobs} = require('../dist/engine.js');
+const {simulate, cases, cpuJobs, contextSwitchJobs} = require('../dist/engine.js');
 const figures = require('./fixtures/chapter7.js');
 const run = (c, p, q=1) => simulate(cases[c].jobs, p, q);
 const intervals = list => list.map(s => [s.start, s.end, s.id]);
@@ -66,7 +66,14 @@ function assertAccounting(jobs, policy, result) {
     assert.equal(activeDisk.length, f.disk === null ? 0 : 1);
     assert.equal(activeDisk[0]?.id ?? null, f.disk);
     if (f.disk) assert.equal(jobAt(f,f.disk).state, 'bloqueado');
-    if (policy !== 'SERIE' && f.cpu === null) assert.equal(f.ready.length, 0, 'No se abandona una CPU libre con trabajo listo');
+    if (f.switching) {
+      assert.equal(policy, 'RR');
+      assert.equal(f.cpu, null);
+      assert.equal(f.ready[0], f.switching.to);
+      assert.ok(f.switching.start <= f.t && f.t < f.switching.end);
+    } else if (policy !== 'SERIE' && f.cpu === null) {
+      assert.equal(f.ready.length, 0, 'No se abandona una CPU libre con trabajo listo');
+    }
     for (const j of f.jobs) {
       assert.equal(j.state === 'nuevo', f.t < jobs.find(input => input.id === j.id).arrival);
       if (j.state === 'bloqueado') {
@@ -220,6 +227,71 @@ test('Inactividad inicial e intermedia sin esperas negativas', () => {
 test('Carga inválida', () => {
   for (const n of [0,-1,1.5,301]) assert.throws(() => simulate(cpuJobs([n]),'RR',1));
   assert.throws(() => run('terminales','RR',0));
+});
+
+test('RR cobra tres cambios entre dos procesos de 2 ms con cuanto de 1 ms', () => {
+  const jobs = cpuJobs([2,2]);
+  const result = simulate(jobs,'RR',1,1);
+  assert.deepEqual(result.switches, [
+    {from:'A',to:'B',start:1,end:2}, {from:'B',to:'A',start:3,end:4}, {from:'A',to:'B',start:5,end:6}
+  ]);
+  assert.deepEqual(result.metrics.map(j => [j.first,j.wait,j.finish]), [[0,3,5],[2,5,7]]);
+  assert.equal(result.busy,4);
+  assert.equal(result.end,7);
+  assertAccounting(jobs,'RR',result);
+  const free = simulate(jobs,'RR',1,0);
+  assert.equal(free.switches.length,3);
+  assert.equal(free.end,4);
+});
+
+test('Una llegada al vencer el cuanto recibe el próximo turno después del cambio', () => {
+  const jobs = cpuJobs([3,1],[0,2]);
+  const r = simulate(jobs,'RR',2,1);
+  assert.deepEqual(frameAt(r,2).ready,['B','A']);
+  assert.equal(jobAt(frameAt(r,2),'B').first,null);
+  assert.equal(frameAt(r,3).cpu,'B');
+  assert.equal(r.end,6);
+  assertAccounting(jobs,'RR',r);
+});
+
+test('Durante el cambio, las llegadas y el fin de E/S entran a listos en su instante', () => {
+  const jobs = [{id:'A',arrival:0,bursts:[1,2,1]}, {id:'B',arrival:0,bursts:[3]},
+    {id:'C',arrival:2,bursts:[1]}, {id:'D',arrival:3,bursts:[1]}];
+  const r = simulate(jobs,'RR',2,3);
+  assert.deepEqual(intervals(r.diskSegments), [[1,3,'A']]);
+  assert.deepEqual(frameAt(r,2).ready,['B','C']);
+  assert.deepEqual(frameAt(r,3).ready,['B','C','D','A']);
+  assert.equal(frameAt(r,2).switching,frameAt(r,3).switching);
+  assert.equal(jobAt(frameAt(r,3),'B').first,null);
+  assert.equal(frameAt(r,4).cpu,'B');
+  assert.equal(frameAt(r,6).switching.to,'C');
+  assertAccounting(jobs,'RR',r);
+});
+
+test('Una renovación de turno o la salida de un período ocioso cuestan cero', () => {
+  for (const jobs of [cpuJobs([3,1],[2,8]), contextSwitchJobs(0,1)]) {
+    const r = simulate(jobs,'RR',1,300);
+    assert.deepEqual(r.switches,[]);
+    assert.deepEqual(r.metrics,simulate(jobs,'RR',1,0).metrics);
+    assertAccounting(jobs,'RR',r);
+  }
+});
+
+test('Los perfiles del experimento reproducen la carga de 7.8 y admiten mezclas o un solo tipo', () => {
+  assert.deepEqual(contextSwitchJobs(1,1),cases.disco.jobs);
+  for (let cpu=0; cpu<=6; cpu++) for (let io=0; io<=6-cpu; io++) {
+    if (cpu+io === 0) continue;
+    const jobs = contextSwitchJobs(cpu,io);
+    assert.equal(jobs.length,cpu+io);
+    assert.equal(jobs.filter(j => j.bursts.length === 1).length,cpu);
+    assert.ok(jobs.slice(0,io).every(j => j.arrival === 0 && j.bursts.length === 9));
+    const r = simulate(jobs,'RR',1,300);
+    assert.equal(r.busy,50*jobs.length);
+    assertAccounting(jobs,'RR',r);
+  }
+  for (const counts of [[0,0],[4,3],[-1,3],[1.5,1],[NaN,0]]) assert.throws(() => contextSwitchJobs(...counts));
+  for (const cost of [-1,301,0.5,NaN]) assert.throws(() => simulate(cases.disco.jobs,'RR',1,cost));
+  assert.throws(() => simulate(cases.disco.jobs,'FIFO',1,2));
 });
 
 test('Conservación por trabajo y por frontera en 200 cargas con E/S', () => {
