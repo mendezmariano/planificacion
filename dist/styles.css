@@ -130,7 +130,8 @@ th { background: #f1f1e6; }
 .config input { width: 90px; }
 .config select, .config input { width: 100%; font-weight: 450; font-size: 14px; }
 #error, .formerror { color: #983730; }
-footer { display: flex; justify-content: space-between; gap: 10px; padding-block: 17px 28px; color: var(--muted); font-size: 12px; }
+footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding-block: 17px 28px; color: var(--muted); font-size: 12px; }
+footer a { color: #28566b; }
 dialog { width: min(550px, 93vw); max-height: 85vh; padding: 22px; border: 2px solid; border-radius: 10px; color: var(--ink); background: var(--paper); }
 dialog::backdrop { background: #1c313980; }
 dialog textarea { width: 100%; font-family: var(--mono); }

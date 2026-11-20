@@ -1,6 +1,6 @@
 # Desarrollo y backlog
 
-El objetivo de la próxima entrega es completar el recorrido didáctico del capítulo 7 para el alumnado de Sistemas Operativos de FIUBA. Los ejemplos tienen como referencia principal [Capitulo_7_Planificacion_ES.pdf](recursos/Capitulo_7_Planificacion_ES.pdf).
+El laboratorio reproduce las nueve figuras del capítulo 7 para el alumnado de Sistemas Operativos de FIUBA. La guía docente ubica las láminas y la actividad de STCF dentro de ese recorrido. [Apunte del capítulo 7](recursos/Capitulo_7_Planificacion_ES.pdf) · [Guía docente](recursos/guia-docente.md)
 
 ## Backlog priorizado
 
@@ -15,9 +15,9 @@ Cada issue contiene los criterios de aceptación y las dependencias. Usá los is
 | [B05](https://github.com/mendezmariano/planificacion/issues/5) | Media | Guiar la comparación de métricas | Comparar las figuras por pares con el mismo reloj y formar los promedios a medida que se conocen sus términos. |
 | [B06](https://github.com/mendezmariano/planificacion/issues/6) | Media | Preparar la distribución para clase | Generar un paquete reproducible con el laboratorio y acceso local al apunte. |
 | [B07](https://github.com/mendezmariano/planificacion/issues/7) | Media | Automatizar las pruebas en GitHub | Ejecutar las pruebas del motor en cada push y pull request, con resultado visible. |
-| [B08](https://github.com/mendezmariano/planificacion/issues/8) | Media | Revisar los recursos complementarios | Revisar las láminas y la imagen del convoy antes de incorporarlas con referencias claras. |
+| [B08](https://github.com/mendezmariano/planificacion/issues/8) | Media | Revisar los recursos complementarios | Relacionar las 13 láminas y la fotografía del convoy con los ejercicios y documentar sus créditos. |
 
-La validación de B04 incluye los instantes entre decisiones. B07 puede resolverse de forma independiente. Todos los cambios deben respetar [AGENTS.md](AGENTS.md).
+La validación en Firefox incluye los instantes entre decisiones y la apertura del apunte local. GitHub Actions ejecuta las pruebas del motor, las figuras y las trazas en cada cambio. [Pruebas del laboratorio](https://github.com/mendezmariano/planificacion/actions/workflows/pruebas.yml) · [Contrato del motor](AGENTS.md)
 
 ## Reproducir la línea de base
 

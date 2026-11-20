@@ -4,13 +4,25 @@ Laboratorio web de planificación para Sistemas Operativos de FIUBA. Reproduce l
 
 ## Abrir para dar clase
 
-Descomprimí el ZIP completo. Abrí **dist/index.html** en Firefox, Chrome o Edge. Todos los recursos están en esa carpeta y funcionan sin Internet. Para trabajar con un servidor local desde la raíz del proyecto:
+Descomprimí el ZIP completo y abrí **dist/index.html** en Firefox, Chrome o Edge. El enlace **Apunte del capítulo 7 (PDF)** al pie del laboratorio abre el texto en otra pestaña. Dejá juntas las carpetas `dist/` y `recursos/` para usar el laboratorio y el apunte sin Internet.
+
+La guía docente relaciona las 13 láminas con las figuras e incluye los datos para reproducir en el simulador la actividad de STCF. [Guía del material de clase](recursos/guia-docente.md)
+
+Para armar el paquete con la versión confirmada en Git, ejecutá este comando desde la raíz del repositorio.
 
 ```bash
-python3 -m http.server 8000 --directory dist
+TZ=UTC git archive --format=zip --output=turno-de-cpu-clase.zip HEAD dist recursos
 ```
 
-Abrí http://localhost:8000. Para probar el motor con Node.js 18 o posterior:
+Para usar un servidor local, ejecutá este comando desde la misma carpeta.
+
+```bash
+python3 -m http.server 8000
+```
+
+Abrí el [laboratorio local](http://localhost:8000/dist/).
+
+Podés ejecutar las pruebas del motor y de las figuras con Node.js 18 o posterior.
 
 ```bash
 node --test test/*.test.js
@@ -24,7 +36,7 @@ python3 scripts/check_firefox.py --output-dir /tmp/planificacion-firefox-review
 
 Si los ejecutables están fuera de `PATH`, indicá `--firefox /ruta/a/firefox` y `--geckodriver /ruta/a/geckodriver`. Agregá `--headed` para ver el recorrido. WebDriver usa un puerto local para controlar Firefox.
 
-La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, los controles, una carga propia y la navegación por teclado a 1280 y 360 px de ancho. Guarda `report.json`, las capturas y `geckodriver.log` en el directorio indicado.
+La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, los controles, una carga propia, la navegación por teclado y el PDF a 1280 y 360 px de ancho. Para verificar el ZIP, extraelo en una carpeta nueva y agregá `--lab-root /ruta/al/paquete/extraido` al comando. El informe `report.json`, las capturas y `geckodriver.log` quedan en el directorio indicado con `--output-dir`.
 
 ## Recorrido
 
@@ -62,4 +74,4 @@ Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés in
 - `test/chapter.test.js` comprueba la correspondencia con el apunte y la identificación de variantes.
 - `test/trace.test.js` comprueba el consumo, la espera, la respuesta y el retorno en instantes intermedios y al retroceder.
 
-Para distribuir la web en un alojamiento estático, copiá el **contenido** de `dist/` a la raíz que se vaya a publicar. La aplicación usa rutas relativas y admite subdirectorios. El repositorio de paginación es la referencia de interacción y diseño: https://mendezmariano.github.io/memoria-virtual/. Libro: https://pages.cs.wisc.edu/~remzi/OSTEP/.
+Para publicar el paquete en un alojamiento estático, conservá las carpetas `dist/` y `recursos/` bajo el mismo directorio y enlazá `dist/index.html`. La aplicación usa rutas relativas. El laboratorio de paginación es la referencia de interacción y diseño. [Laboratorio de memoria virtual](https://mendezmariano.github.io/memoria-virtual/) · [Operating Systems: Three Easy Pieces](https://pages.cs.wisc.edu/~remzi/OSTEP/).
