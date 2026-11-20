@@ -30,6 +30,8 @@ La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Rec
 
 Al abrir el laboratorio empieza la figura 7.1. Elegí otra en **Ejercicio del apunte** para reproducirla con sus valores originales. La sección 7.6 vuelve a la figura 7.5 para calcular la respuesta. La parte clara de cada barra representa el tiempo ya ejecutado. Durante la espera, la barra conserva su avance.
 
+La reproducción empieza a **0,25×**. En la figura 7.7, cada turno de 1 s dura 4 segundos en pantalla. En **Velocidad** podés bajar a **0,1×** o acelerar el recorrido. El ajuste también se aplica a **Siguiente**.
+
 Pausá la simulación o mové **Recorrer el tiempo** para examinar un instante. **Anterior** y **Siguiente** recorren las decisiones. Al retroceder también se restauran las cuentas. Por ejemplo, en la figura 7.5, a los 35 s, A lleva `10 + (35 − 30) = 15 s` de ejecución y le quedan 85 s. B y C ya tienen retorno, y el de A sigue pendiente.
 
 En **Explorar otra carga o política** podés cambiar los trabajos, la política o el cuanto. El encabezado identifica la figura original, la variante o la carga propia. **Mirar debajo del capó** abre el detalle de colas, ráfagas e intervalos observados.

@@ -14,6 +14,7 @@
   const table = (heads, rows) => '<div class="scroll"><table><thead><tr>'+heads.map(h=>'<th scope="col">'+h+'</th>').join('')+
     '</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   const picker = el('figure');
+  const speed = el('speed');
   for (const r of readings) {
     const policyName = r.policy === 'SERIE' ? 'E/S en serie' : r.policy;
     const name = r.key === 'respuesta' ? '§ 7.6 · Respuesta en la figura 7.5' : 'Figura '+r.number+' · '+policyName+' · '+cases[r.caseId].name;
@@ -121,7 +122,10 @@
   function tick(stamp) {
     const run = playback;
     if (!run) return;
-    if (run.last !== null) run.time = Math.min(run.target, run.time + Math.max(0,stamp-run.last)*run.rate/1000);
+    if (run.last !== null) {
+      const elapsed = Math.max(0, stamp - run.last) / 1000;
+      run.time = Math.min(run.target, run.time + elapsed * run.rateAt1x * Number(speed.value));
+    }
     run.last = stamp;
     // El mismo décimo de unidad alimenta el reloj, el color y todas las operaciones.
     const visible = Math.floor(run.time*10)/10;
@@ -136,9 +140,9 @@
     stop();
     const from = snapshot.time;
     const baseRate = caseId === 'terminales' ? 1 : caseId === 'iguales' ? 2.5 : 5;
-    const rate = baseRate * Number(el('speed').value);
-    // Un avance manual muestra el tramo y se detiene exactamente en su frontera.
-    playback = {time:from, last:null, target, stepping, rate:stepping ? Math.max(rate,(target-from)/0.65) : rate};
+    // A 1×, Siguiente recorre un intervalo en hasta 0,65 s. El selector escala también ese recorrido.
+    const rateAt1x = stepping ? Math.max(baseRate, (target - from) / 0.65) : baseRate;
+    playback = {time:from, last:null, target, rateAt1x};
     setPlayLabel();
     request = requestAnimationFrame(tick);
   }
@@ -218,7 +222,6 @@
   };
   el('next').onclick = () => playTo(result.frames[snapshot.index+1].t, true);
   el('seek').oninput = () => seek(el('seek').valueAsNumber);
-  el('speed').onchange = () => { if (playback) playTo(playback.target,playback.stepping); };
   el('technical').ontoggle = drawTechnical;
   document.addEventListener('visibilitychange', () => { if (playback) playback.last = null; });
 

@@ -115,6 +115,24 @@ def scrub(browser, instant):
     """, instant)
 
 
+def check_clock_rate(browser, expected):
+    # Medir ambos relojes en los mismos cuadros de Firefox, sin incluir la latencia de WebDriver.
+    rate = browser.request('POST', '/execute/async', {'args': [], 'script': """
+      const done = arguments[arguments.length - 1];
+      const clock = document.getElementById('time');
+      requestAnimationFrame(start => {
+        const initial = Number(clock.dataset.time);
+        function measure(now) {
+          const elapsed = (now - start) / 1000;
+          if (elapsed < 1.2) return requestAnimationFrame(measure);
+          done((Number(clock.dataset.time) - initial) / elapsed);
+        }
+        requestAnimationFrame(measure);
+      });
+    """})
+    assert abs(rate - expected) < 0.2, ('Unidades simuladas por segundo real', rate, expected)
+
+
 def disclosure(browser, name, opened):
     if browser.execute("return document.getElementById(arguments[0]).open;", name) != opened:
         browser.click('#' + name + ' summary')
@@ -193,6 +211,12 @@ def check_figures(browser, report):
 def check_controls(browser, report):
     report['stage'] = 'Reproducción continua y color de los trabajos'
     browser.select('#figure', '7.5')
+    assert browser.execute("return document.getElementById('speed').value;") == '0.25'
+    check_clock_rate(browser, 1.25)
+    browser.select('#speed', '0.1')
+    check_clock_rate(browser, 0.5)
+    browser.select('#speed', '0.25')
+    report['checks'].append('El reloj empieza a 0,25× y baja a 0,1× durante la reproducción')
     wait_for(lambda: snapshot(browser)['t'] > 0, 'el reloj avanza al elegir una figura')
     before = snapshot(browser)
     wait_for(lambda: snapshot(browser)['jobs'][0]['fill'] > before['jobs'][0]['fill'] + 1, 'la parte clara de A crece durante el tramo')
@@ -221,6 +245,7 @@ def check_controls(browser, report):
     browser.tab_to('next')
     assert float(browser.execute('return getComputedStyle(document.activeElement).outlineWidth;').removesuffix('px')) > 0
     browser.key('\ue007')
+    check_clock_rate(browser, 10 / 2.6)
     wait_for(lambda: snapshot(browser)['t'] == 10, 'Siguiente se detiene en 10 s')
     browser.click('#seek')
     browser.key('\ue011')  # Inicio
@@ -244,11 +269,12 @@ def check_controls(browser, report):
 
     report['stage'] = 'Explorar variantes y escribir una carga propia'
     browser.select('#figure', '7.7')
+    check_clock_rate(browser, 0.25)
     browser.select('#speed', '4')
     wait_for(lambda: snapshot(browser)['results'], 'RR termina sus 15 turnos en reproducción automática', timeout=12)
     assert snapshot(browser)['time'] == '15 s'
     assert browser.text('[data-metric="finish"] .formula') == '(13 + 14 + 15) / 3 = 14 s'
-    browser.select('#speed', '1')
+    browser.select('#speed', '0.25')
     report['checks'].append('RR reproduce de principio a fin y completa los dos promedios')
     disclosure(browser, 'settings', True)
     browser.fill('#q', '5')
