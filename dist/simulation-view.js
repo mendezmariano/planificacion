@@ -54,32 +54,36 @@
     };
   }
 
+  function meanHTML(jobs, field, unit, differences) {
+    const terms = jobs.map(j => {
+      const known = j[field] !== null;
+      const value = known ? fmt(j[field] - j.arrival) : '…';
+      const expand = differences === 'all' || (differences === 'late' && j.arrival !== 0);
+      const term = known && expand ? '('+j[field]+' − '+j.arrival+')' : value;
+      const label = 'Trabajo '+j.id+(known ? ', '+term+' '+unit : ' pendiente');
+      return '<span class="term" data-id="'+j.id+'" title="'+label+'" aria-label="'+label+'">'+term+'</span>';
+    });
+    const brackets = differences ? ['[',']'] : ['(',')'];
+    const expression = brackets[0]+terms.join(' + ')+brackets[1]+' / '+jobs.length;
+    if (jobs.some(j => j[field] === null)) return expression;
+    const sum = jobs.reduce((total, j) => total + j[field] - j.arrival, 0);
+    const op = (sum*100) % jobs.length === 0 ? '=' : '≈';
+    return expression+' <span class="mean-value">'+op+' '+fmt(sum/jobs.length)+' '+unit+'</span>';
+  }
+
   function metricHTML(jobs, field, unit, differences) {
     const response = field === 'first';
     const title = response ? 'Tiempo de respuesta' : 'Tiempo de retorno';
     const definition = (response ? 'Primera ejecución' : 'Finalización')+' − llegada';
-    const values = [];
-    const terms = [];
     const lines = jobs.map(j => {
-      const known = j[field] !== null;
-      const difference = known ? j[field]+' − '+j.arrival : '';
-      if (known) values.push(j[field]-j.arrival);
-      const value = known ? String(j[field]-j.arrival) : '…';
-      const expand = differences === 'all' || (differences === 'late' && j.arrival !== 0);
-      const term = known && expand ? '('+difference+')' : value;
-      terms.push('<span class="term" data-id="'+j.id+'" title="Trabajo '+j.id+'">'+term+'</span>');
-      const description = known ? difference+' = <b>'+value+' '+unit+'</b>' : '<span class="pending">Pendiente</span>';
+      const description = j[field] === null ? '<span class="pending">Pendiente</span>' :
+        j[field]+' − '+j.arrival+' = <b>'+fmt(j[field] - j.arrival)+' '+unit+'</b>';
       return '<li data-for="'+j.id+'">'+letter(j.id)+'<span>'+description+'</span></li>';
     });
-    const complete = values.length === jobs.length;
-    const sum = values.reduce((a,b) => a+b, 0);
-    const op = (sum*100) % jobs.length === 0 ? '=' : '≈';
-    const result = complete ? ' <span class="mean-value">'+op+' '+fmt(sum/jobs.length)+' '+unit+'</span>' : '';
-    const brackets = differences ? ['[',']'] : ['(',')'];
-    const mean = brackets[0]+terms.join(' + ')+brackets[1]+' / '+jobs.length+result;
+    const known = jobs.filter(j => j[field] !== null).length;
     return '<section class="metric" data-metric="'+field+'"><h3>'+title+'</h3><p class="definition">'+definition+'</p>'+
-      '<ul class="terms">'+lines.join('')+'</ul><div class="sum"><small>Promedio · '+values.length+' de '+jobs.length+
-      ' términos</small><div class="formula">'+mean+'</div></div></section>';
+      '<ul class="terms">'+lines.join('')+'</ul><div class="sum"><small>Promedio · '+known+' de '+jobs.length+
+      ' términos</small><div class="formula">'+meanHTML(jobs,field,unit,differences)+'</div></div></section>';
   }
 
   function ioHTML(s, result, unit) {
@@ -127,6 +131,51 @@
         if (!response && context.kind !== 'original') html += metricHTML(jobs, 'first', work.unit, differences);
       }
       el('calculations').innerHTML = html;
+    };
+  }
+
+  function makeComparison(work, caseId, policy, quantum, reading) {
+    const figures = root.CpuChapter.figures.filter(f => f.caseId === caseId);
+    const side = figures.findIndex(f => f.policy === policy);
+    const panel = el('comparison');
+    const cards = el('comparisonPolicies');
+    cards.replaceChildren();
+    panel.hidden = figures.length !== 2 || side < 0;
+    if (panel.hidden) return () => {};
+
+    const peer = figures[1 - side];
+    const peerResult = root.CpuLab.simulate(work.jobs, peer.policy, peer.quantum ?? 1);
+    const peerTrace = root.CpuTrace.readTrace(work.jobs, peerResult);
+    const rrQuantum = policy === 'RR' ? quantum : peer.quantum;
+    const disk = caseId === 'disco';
+    const response = caseId === 'terminales' || reading === 'respuesta';
+    el('comparisonHint').hidden = disk;
+    cards.innerHTML = figures.map(f => {
+      const name = f.policy === 'SERIE' ? 'E/S en serie' : f.policy === 'RR' ? 'RR · cuanto de '+rrQuantum+' '+work.unit : f.policy;
+      const reference = f.quantum && f.quantum !== rrQuantum ? 'Variante de la figura '+f.number : 'Figura '+f.number;
+      return '<section data-policy="'+f.policy+'"><h3>'+name+' <small>'+reference+'</small></h3><dl></dl></section>';
+    }).join('');
+    const lists = cards.querySelectorAll('dl');
+    const field = (key, label, value) => '<div><dt>'+label+'</dt><dd class="formula" data-field="'+key+'">'+value+'</dd></div>';
+    let previous = [];
+    return function drawComparison(s) {
+      el('comparisonTime').textContent = fmt(s.time)+' '+work.unit;
+      const other = peerTrace.at(Math.min(s.time, peerResult.end));
+      const states = side === 0 ? [s, other] : [other, s];
+      if (!disk && states.every((state, i) => state.index === previous[i])) return;
+      previous = states.map(state => state.index);
+      states.forEach((state, i) => {
+        if (disk) {
+          const done = state.jobs.every(j => j.finish !== null);
+          lists[i].innerHTML = field('idle','CPU ociosa',fmt(state.idle)+' '+work.unit)+
+            field('overlap','CPU y disco en uso a la vez',fmt(state.overlap)+' '+work.unit)+
+            field('end','Fin del lote',done ? fmt(state.time)+' '+work.unit : 'Pendiente');
+        } else {
+          lists[i].innerHTML = (response ? field('first','Respuesta media',meanHTML(state.jobs,'first',work.unit)) : '')+
+            field('finish','Retorno medio',meanHTML(state.jobs,'finish',work.unit));
+        }
+      });
+      el('comparisonNote').textContent = root.CpuChapter.comparisonNote(caseId,states[0],states[1],rrQuantum);
     };
   }
 
@@ -203,5 +252,5 @@
     };
   }
 
-  root.CpuView = {fmt, makeJobs, makeCalculations, makeTimeline};
+  root.CpuView = {fmt, makeJobs, makeCalculations, makeComparison, makeTimeline};
 })(globalThis);

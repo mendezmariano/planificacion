@@ -2,7 +2,7 @@
 (() => {
   const {cases, simulate} = window.CpuLab;
   const {readings, contextFor} = window.CpuChapter;
-  const {fmt, makeJobs, makeCalculations, makeTimeline} = window.CpuView;
+  const {fmt, makeJobs, makeCalculations, makeComparison, makeTimeline} = window.CpuView;
   const el = id => document.getElementById(id);
   const rules = {
     FIFO:['Primero en entrar, primero en salir','Ejecuta la primera ráfaga que entró a listos. Una nueva llegada espera hasta que la CPU quede libre.'],
@@ -29,7 +29,7 @@
   el('case').add(new Option('Carga propia','propia'));
 
   let custom = {name:'Carga propia', unit:'s', jobs:cases.convoy.jobs};
-  let work, result, trace, context, snapshot, drawJobs, drawCalculations, drawTimeline;
+  let work, result, trace, context, snapshot, drawJobs, drawCalculations, drawComparison, drawTimeline;
   let policy, caseId, quantum = 1, reading;
   let playback = null;
   let request = null;
@@ -65,14 +65,14 @@
   function resultsHTML() {
     const rows = ['FIFO','SJF','STCF','RR',...(caseId === 'disco' ? ['SERIE'] : [])].map(p => {
       const r = p === policy ? result : simulate(work.jobs,p,quantum);
-      const name = p === 'RR' ? 'RR (q = '+quantum+')' : p === 'SERIE' ? 'E/S en serie' : p;
+      const name = p === 'RR' ? 'RR (q = '+quantum+' '+work.unit+')' : p === 'SERIE' ? 'E/S en serie · figura 7.8' : p;
       return [name,fmt(r.response),fmt(r.turnaround),r.end,fmt(r.utilization)+' %'];
     });
     return '<h3>Por trabajo ('+work.unit+')</h3>'+
       table(['Trabajo','Llegada','Primer uso','Fin','Respuesta','Retorno','Espera en listos'],
         result.metrics.map(j=>[j.id,j.arrival,j.first,j.finish,j.response,j.turnaround,j.wait]))+
       '<details class="details"><summary>Comparar políticas con esta carga</summary>'+
-      table(['Política','Respuesta media','Retorno medio','Fin del lote','CPU ocupada'],rows)+'</details>';
+      table(['Política','Respuesta media ('+work.unit+')','Retorno medio ('+work.unit+')','Fin del lote ('+work.unit+')','CPU ocupada'],rows)+'</details>';
   }
 
   function draw(time) {
@@ -86,6 +86,7 @@
     drawJobs(snapshot);
     drawTimeline(time);
     drawCalculations(snapshot);
+    drawComparison(snapshot);
     if (!previous || snapshot.index !== previous.index) {
       const f = snapshot.frame;
       el('eventTime').textContent = f.t+' '+work.unit;
@@ -192,6 +193,7 @@
     drawJobs = makeJobs(trace.at(0).jobs, work.unit);
     drawTimeline = makeTimeline(result,trace,context,work.unit);
     drawCalculations = makeCalculations(work,result,context,reading);
+    drawComparison = makeComparison(work,caseId,policy,quantum,reading);
     draw(0);
     playTo(result.end);
   }

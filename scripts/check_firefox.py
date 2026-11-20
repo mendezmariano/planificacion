@@ -280,6 +280,10 @@ def check_controls(browser, report):
     browser.fill('#q', '5')
     browser.key('\ue004')
     assert browser.text('#chapterMode') == 'Variante del apunte'
+    browser.click('#end')
+    assert 'Variante de la figura 7.7' in browser.text('#comparison [data-policy=RR] h3')
+    assert browser.text('#comparison [data-policy=RR] [data-field=finish]') == '(5 + 10 + 15) / 3 = 10 s'
+    assert 'termina en su primer turno' in browser.text('#comparisonNote')
     browser.select('#figure', '7.5')
     browser.select('#figure', '7.7')
     assert browser.execute("return document.getElementById('q').value") == '1'
@@ -294,6 +298,7 @@ def check_controls(browser, report):
     assert not browser.execute("return document.querySelector('dialog').open")
     assert browser.execute('return document.activeElement.id') == 'configBtn'
     assert browser.text('#chapterMode') == 'Carga propia'
+    assert browser.execute('return document.getElementById("comparison").hidden')
     browser.select('#policy', 'FIFO')
     scrub(browser, 0)
     assert not snapshot(browser)['jobs']
@@ -313,6 +318,57 @@ def check_controls(browser, report):
         browser.open(query)
         assert browser.text('#chapterReference') == ref
     report['checks'].append('Apertura directa por figura, sección y combinación de política y carga')
+
+
+def check_comparison(browser, report):
+    report['stage'] = 'Dos figuras en el mismo instante'
+
+    def value(policy, field):
+        return browser.text(f'#comparison [data-policy="{policy}"] [data-field="{field}"]')
+
+    browser.select('#figure', '7.7')
+    scrub(browser, 2)
+    assert browser.text('#comparisonTime') == '2 s'
+    assert value('SJF', 'first') == '(0 + … + …) / 3'
+    assert value('RR', 'first') == '(0 + 1 + 2) / 3 = 1 s'
+    assert value('RR', 'finish') == '(… + … + …) / 3'
+    assert 'C ya recibió CPU con RR a los 2 s' in browser.text('#comparisonNote')
+    browser.click('#end')
+    assert value('SJF', 'first') == '(0 + 5 + 10) / 3 = 5 s'
+    assert value('SJF', 'finish') == '(5 + 10 + 15) / 3 = 10 s'
+    assert value('RR', 'finish') == '(13 + 14 + 15) / 3 = 14 s'
+    browser.click('#prev')
+    assert value('RR', 'finish') == '(13 + 14 + …) / 3'
+    browser.click('#reset')
+    assert value('RR', 'first') == '(0 + … + …) / 3'
+
+    browser.select('#figure', '7.2')
+    scrub(browser, 20)
+    assert value('FIFO', 'finish') == '(… + … + …) / 3'
+    assert value('SJF', 'finish') == '(… + 10 + 20) / 3'
+    browser.select('#figure', 'respuesta')
+    scrub(browser, 20)
+    assert value('SJF', 'first') == '(0 + … + …) / 3'
+    assert value('STCF', 'first') == '(0 + 0 + 10) / 3 ≈ 3,33 s'
+    browser.click('#end')
+    assert value('SJF', 'finish') == '(100 + 100 + 110) / 3 ≈ 103,33 s'
+    assert value('STCF', 'finish') == '(120 + 10 + 20) / 3 = 50 s'
+    report['checks'].append('Convoy, desalojo y cuanto de RR con cuentas parciales y retroceso')
+
+    browser.select('#figure', '7.9')
+    scrub(browser, 15)
+    assert value('SERIE', 'idle') == value('STCF', 'overlap') == '5 ms'
+    assert value('SERIE', 'overlap') == value('STCF', 'idle') == '0 ms'
+    browser.click('#end')
+    assert value('STCF', 'end') == '100 ms' and value('SERIE', 'end') == 'Pendiente'
+    browser.select('#figure', '7.8')
+    browser.click('#end')
+    assert value('SERIE', 'end') == '140 ms' and value('STCF', 'end') == '100 ms'
+    assert value('SERIE', 'idle') == value('STCF', 'overlap') == '40 ms'
+    assert value('STCF', 'idle') == '0 ms'
+    browser.select('#figure', '7.1')
+    assert browser.execute('return document.getElementById("comparison").hidden')
+    report['checks'].append('E/S en serie y STCF con el reloj limitado al fin de cada lote')
 
 
 def main():
@@ -370,6 +426,7 @@ def main():
             wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción inicial de la figura 7.1')
             check_figures(browser, report)
             check_controls(browser, report)
+            check_comparison(browser, report)
             for figure, instant, label in [('7.1', 5, 'inicio'), ('7.5', 35, 'reanudacion'), ('7.9', 15, 'disco')]:
                 browser.select('#figure', figure)
                 scrub(browser, instant)
@@ -383,6 +440,11 @@ def main():
             browser.click('#end')
             filename = f'firefox-{width}-retorno-final.png'
             browser.screenshot(output/filename, '.accounts')
+            report['screenshots'].append(filename)
+            browser.select('#figure', '7.7')
+            browser.click('#end')
+            filename = f'firefox-{width}-comparacion-rr.png'
+            browser.screenshot(output/filename, '#comparison')
             report['screenshots'].append(filename)
             resources = browser.execute("return performance.getEntriesByType('resource').map(r=>r.name);")
             assert all(url.startswith('file:') for url in resources), resources

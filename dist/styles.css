@@ -106,6 +106,15 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
   font: 700 11px/1.35 var(--mono); color: #465b64;
 }
 .io-detail { margin-top: 12px; font-size: 13px; line-height: 1.45; }
+#comparison { margin-block: 17px; }
+#comparison .panel-head { background: #e6f2f5; }
+#comparisonPolicies { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#comparisonPolicies section { padding: 16px 20px; }
+#comparisonPolicies section + section { border-left: 1px solid var(--rule); }
+#comparisonPolicies h3 { font-size: 17px; }
+#comparisonPolicies small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 500; }
+#comparisonPolicies dt { margin: 12px 0 3px; font-size: 13px; font-weight: 650; }
+#comparisonNote { padding: 12px 20px; border-top: 1px solid var(--rule); font-size: 14px; line-height: 1.45; }
 #results { margin-block: 17px; padding: 18px 20px; }
 #results h3, #technical h3, dialog h3 { font-size: 15px; margin: 14px 0 5px; }
 .scroll { overflow-x: auto; }
@@ -134,6 +143,9 @@ dialog #save { margin-top: 8px; }
   .picker { width: min(100%, 410px); }
 }
 @media (max-width: 560px) {
+  #comparisonPolicies { grid-template-columns: 1fr; }
+  #comparisonPolicies section, #comparisonNote { padding: 12px; }
+  #comparisonPolicies section + section { border-left: 0; border-top: 1px solid var(--rule); }
   .top { min-height: 56px; gap: 8px; }
   .brand { font-size: 21px; gap: 8px; }
   .brandicon { width: 31px; height: 30px; }
