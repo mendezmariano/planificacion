@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {simulate, cases, cpuJobs, contextSwitchJobs} = require('../dist/engine.js');
+const {simulate, simulateEstimated, cases, cpuJobs, contextSwitchJobs} = require('../dist/engine.js');
 const figures = require('./fixtures/chapter7.js');
 const run = (c, p, q=1) => simulate(cases[c].jobs, p, q);
 const intervals = list => list.map(s => [s.start, s.end, s.id]);
@@ -227,6 +227,67 @@ test('Inactividad inicial e intermedia sin esperas negativas', () => {
 test('Carga inválida', () => {
   for (const n of [0,-1,1.5,301]) assert.throws(() => simulate(cpuJobs([n]),'RR',1));
   assert.throws(() => run('terminales','RR',0));
+});
+
+test('STCF con historia propia y con oráculo toman decisiones distintas a los 20 ms de la figura 7.9', () => {
+  const jobs = cases.disco.jobs;
+  const r = simulateEstimated(jobs,'STCF',{initial:20,alpha:0.5});
+  const known = simulate(jobs,'STCF');
+  assert.equal(frameAt(r,20).cpu,'B');
+  assert.equal(frameAt(known,20).cpu,'A');
+  const [a,b] = frameAt(r,20).jobs;
+  assert.deepEqual(a.prediction,{estimate:15,served:0,observation:{at:10,actual:10,prior:20,next:15}});
+  assert.deepEqual(b.prediction,{estimate:20,served:10,observation:null});
+  assert.deepEqual([a.remaining,b.remaining],[10,40]);
+  assert.deepEqual([r.end,known.end],[130,100]);
+  assertAccounting(jobs,'STCF',r);
+  const alternate = [{...jobs[0],bursts:[10,10,40]}, {...jobs[1],bursts:[70]}];
+  const changed = frameAt(simulateEstimated(alternate,'STCF',{initial:20,alpha:0.5}),20);
+  assert.equal(changed.cpu,'B');
+  assert.deepEqual(changed.jobs.map(j=>j.prediction),[a.prediction,b.prediction]);
+});
+
+test('Medir una ráfaga desalojada suma sus dos tramos de CPU y excluye la espera y el disco', () => {
+  const jobs = [{id:'A',arrival:0,bursts:[2,2,1]}, {id:'B',arrival:0,bursts:[10,3,2]}];
+  const r = simulateEstimated(jobs,'STCF',{initial:10,alpha:1});
+  assert.equal(frameAt(r,4).cpu,'A');
+  assert.deepEqual(jobAt(frameAt(r,4),'B').prediction,{estimate:10,served:2,observation:null});
+  assert.equal(frameAt(r,5).cpu,'B');
+  assert.equal(jobAt(frameAt(r,5),'B').prediction.served,2);
+  assert.deepEqual(jobAt(frameAt(r,13),'B').prediction.observation,{at:13,actual:10,prior:10,next:10});
+  assert.equal(jobAt(frameAt(r,16),'B').prediction.served,0);
+  assertAccounting(jobs,'STCF',r);
+});
+
+test('SJF termina su ráfaga y STCF desempata por índice aun cuando el proceso es desalojable', () => {
+  const jobs = cases.disco.jobs;
+  const settings = {initial:30,alpha:0.5};
+  const estimate = simulateEstimated(jobs,'STCF',settings);
+  assert.equal(frameAt(estimate,20).cpu,'A'); // A estima 20; B ya consumió 10 de sus 30.
+  assert.equal(frameAt(simulateEstimated(jobs,'SJF',settings),20).cpu,'B');
+  for (const policy of ['SJF','STCF']) {
+    const convoy = simulateEstimated(cases.convoy.jobs,policy,settings);
+    assert.equal(convoy.frames[0].cpu,'A');
+    assert.equal(convoy.turnaround,110);
+    assert.equal(simulate(cases.convoy.jobs,policy).turnaround,50);
+  }
+});
+
+test('Agotar la estimación no crea un fin de ráfaga y la última observación conserva su peso', () => {
+  const jobs = cpuJobs([8,1],[0,4]);
+  const r = simulateEstimated(jobs,'STCF',{initial:2,alpha:0.5});
+  assert.deepEqual(r.frames.map(f=>f.t),[0,4,8,9]);
+  assert.equal(frameAt(r,4).cpu,'A');
+  assert.equal(jobAt(frameAt(r,4),'A').prediction.served,4);
+  assert.deepEqual(jobAt(frameAt(r,8),'A').prediction.observation,{at:8,actual:8,prior:2,next:null});
+  for (const [alpha,next] of [[0,20],[0.25,17.5],[0.5,15],[1,10]]) {
+    const mixed = simulateEstimated(cases.disco.jobs,'STCF',{initial:20,alpha});
+    assert.equal(jobAt(frameAt(mixed,10),'A').prediction.estimate,next);
+  }
+  for (const settings of [null,{initial:0,alpha:0.5},{initial:1.5,alpha:0.5},{initial:301,alpha:0.5},{initial:20,alpha:NaN},{initial:20,alpha:-1},{initial:20,alpha:1.1}]) {
+    assert.throws(()=>simulateEstimated(jobs,'STCF',settings));
+  }
+  assert.throws(()=>simulateEstimated(jobs,'RR',{initial:20,alpha:0.5}));
 });
 
 test('RR cobra tres cambios entre dos procesos de 2 ms con cuanto de 1 ms', () => {

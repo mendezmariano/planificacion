@@ -35,10 +35,8 @@ El experimento de cambio de contexto usa Round Robin con la mezcla de procesos, 
 
 Las pruebas cubren dos procesos de 2 ms que terminan en 7 ms con cuanto y costo de 1 ms. También comprueban las llegadas al vencer el cuanto, el fin de E/S durante un cambio, la renovación del turno del mismo proceso y la composición del reloj al retroceder.
 
-## Extensión pendiente
+## Experimento de estimación de ráfagas
 
-### Comparar ráfagas estimadas y reales
+El laboratorio compara SJF y STCF con estimaciones por proceso frente a la misma política con duraciones conocidas. Las cargas corresponden al efecto convoy y a la figura 7.9. Cada corrida comparte con su referencia el reloj, las llegadas y las demandas de CPU y disco. El avance por eventos y el retroceso recorren las fronteras de ambas trazas. [Abrir el experimento](dist/index.html?experimento=estimacion)
 
-> Incorporá un modo experimental, separado del capítulo 7, que estime la duración de la próxima ráfaga a partir de la historia del proceso. Exponé la estimación, su actualización y el efecto sobre la secuencia elegida.
-
-Aceptación: el estudiante distingue duración real, estimación y restante. Mantener SJF/STCF con oráculo como referencia para comparar sobre la misma carga. Acordar el estimador y su valor inicial antes de interpretar resultados.
+La estimación inicial y el peso de la última medición se pueden ajustar. Las pruebas comprueban la actualización al terminar la ráfaga, el servicio acumulado durante un desalojo, los empates y el caso en que la CPU consumida supera la estimación. En la configuración inicial, a los 20 ms sigue B con estimaciones y ejecuta A con el oráculo.

@@ -453,6 +453,87 @@ def check_experiment(browser, report, output, width):
     report['checks'].append('Mezcla de procesos, carga inválida, dos cuantos, costo cero y un único proceso con disco')
 
 
+def check_estimation(browser, report, output, width):
+    report['stage'] = 'Comparar la estimación con el oráculo'
+    browser.open('?experimento=estimacion')
+    wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción de las ráfagas estimadas')
+    assert browser.text('#chapterTitle') == 'Estimar la próxima ráfaga'
+    browser.click('#reset')
+    def value(model, key):
+        return browser.text(f'[data-model="{model}"] [data-field="{key}"]')
+    a = '.estimate-job[data-for=A]'
+    b = '.estimate-job[data-for=B]'
+    assert 'Pendiente' in browser.text(a) and 'Pendiente' in browser.text(b)
+    assert 'empatan en 20 ms estimados' in browser.text('#decision')
+    scrub(browser, 20)
+    assert browser.text(a+' .formula') == '0,5 × 10 + 0,5 × 20 = 15 ms'
+    assert 'A 15 ms · B 10 ms' in browser.text('#decision')
+    assert value('estimate','cpu') == 'B' and value('oracle','cpu') == 'A'
+    assert value('oracle','remaining') == 'A 10 ms · B 40 ms'
+    assert value('oracle','end') == value('estimate','end') == 'Pendiente'
+    assert 'CPU oráculo' in browser.text('#timeline') and 'Disco oráculo' in browser.text('#timeline')
+    assert browser.execute('return document.documentElement.scrollWidth <= innerWidth')
+    browser.execute('window.scrollTo(0,0)')
+    for name, selector in [('estimacion', None), ('estimacion-cuentas', '.accounts'), ('estimacion-comparacion', '#comparison')]:
+        filename = f'firefox-{width}-{name}.png'
+        browser.screenshot(output/filename, selector)
+        report['screenshots'].append(filename)
+    scrub(browser, 25)
+    lanes = browser.execute("""return ['CPU estim.', 'CPU oráculo'].map(label =>
+      [...document.querySelectorAll('#timeline [data-lane="' + label + '"] > g')].map(g => g.dataset.id));""")
+    assert lanes == [['A','B'],['A','B','A']], lanes
+    filename = f'firefox-{width}-estimacion-intervalos.png'
+    browser.screenshot(output/filename, '.trace')
+    report['screenshots'].append(filename)
+    scrub(browser, 20)
+    browser.select('#speed', '4')
+    browser.click('#next')
+    wait_for(lambda: snapshot(browser)['t'] == 30, 'la próxima decisión del oráculo también permite avanzar')
+    assert browser.text('#eventTime') == '30 ms' and 'Oráculo' in browser.text('#decision')
+    scrub(browser, 35)
+    assert 'máx(0, 20 − 25) = 0 ms' in browser.text(b)
+    assert 'Restante real de la carga · 50 − 25 = 25 ms' in browser.text(b)
+    browser.click('#prev')
+    assert snapshot(browser)['t'] == 30
+    scrub(browser, 100)
+    assert value('oracle','end') == '100 ms' and value('estimate','end') == 'Pendiente'
+    browser.click('#end')
+    assert snapshot(browser)['time'] == '130 ms' and value('estimate','end') == '130 ms'
+    assert value('oracle','end') == '100 ms'
+    browser.click('#reset')
+    assert 'Pendiente' in browser.text(a) and 'terminó una ráfaga' not in browser.text(a)
+    report['checks'].append('Estimación individual, cuenta observada, piso cero y secuencia del oráculo con el mismo reloj')
+
+    browser.fill('#initialEstimate', '0')
+    browser.click('#applyEstimate')
+    assert 'entera de 1 a 300' in browser.text('#estimateError') and snapshot(browser)['t'] == 0
+    browser.fill('#initialEstimate', '30')
+    browser.tab_to('applyEstimate')
+    browser.key('\ue007')
+    scrub(browser, 20)
+    assert value('estimate','cpu') == 'A' and 'empatan en 20 ms estimados' in browser.text('#decision')
+    browser.select('#alpha', '1')
+    browser.click('#applyEstimate')
+    scrub(browser, 10)
+    assert browser.text(a+' .formula') == '1 × 10 + 0 × 30 = 10 ms'
+    browser.select('#estimateCase', 'convoy')
+    assert browser.text('#initialUnit') == 's'
+    browser.select('#estimatePolicy', 'SJF')
+    browser.click('#applyEstimate')
+    browser.click('#reset')
+    assert value('estimate','cpu') == 'A' and value('oracle','cpu') == 'B'
+    browser.click('#end')
+    assert value('estimate','finish') == '(100 + 110 + 120) / 3 = 110 s'
+    assert value('oracle','finish') == '(120 + 10 + 20) / 3 = 50 s'
+    browser.select('#figure', '7.9')
+    scrub(browser, 20)
+    assert 'Con estimaciones' not in browser.text('#comparisonPolicies')
+    assert browser.execute("return document.getElementById('estimation').hidden")
+    browser.select('#figure', 'estimacion')
+    assert browser.execute("return ['estimateCase','estimatePolicy','initialEstimate','alpha'].map(id=>document.getElementById(id).value)") == ['convoy','SJF','30','1']
+    report['checks'].append('Cambiar estimación inicial, peso y política por teclado, comparar SJF y recuperar la configuración')
+
+
 def check_chapter_pdf(browser):
     source = Path('recursos/Capitulo_7_Planificacion_ES.pdf')
     pdf = browser.lab_root / source
@@ -528,6 +609,7 @@ def main():
             check_controls(browser, report)
             check_comparison(browser, report)
             check_experiment(browser, report, output, width)
+            check_estimation(browser, report, output, width)
             for figure, instant, label in [('7.1', 5, 'inicio'), ('7.5', 35, 'reanudacion'), ('7.9', 15, 'disco')]:
                 browser.select('#figure', figure)
                 scrub(browser, instant)

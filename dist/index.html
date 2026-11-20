@@ -28,7 +28,7 @@
       <div class="picker"><label for="figure">Ejercicio o experimento</label><select id="figure"></select></div>
     </section>
 
-    <form id="experiment" aria-label="Preparar el experimento de Round Robin" novalidate hidden>
+    <form id="experiment" class="experiment-form" aria-label="Preparar el experimento de Round Robin" novalidate hidden>
       <div class="experiment-inputs">
         <label>Procesos solo CPU<input id="cpuCount" type="number" min="0" max="6" value="1" required></label>
         <label>Procesos con E/S<input id="ioCount" type="number" min="0" max="6" value="1" required></label>
@@ -38,6 +38,22 @@
       </div>
       <p>Elegí entre 1 y 6 procesos en total. Todos llegan en 0 ms. Los que usan disco ingresan primero a listos. El temporizador tiene un período de 1 ms.</p>
       <p id="experimentError" class="formerror" role="alert" hidden></p>
+    </form>
+
+    <form id="estimation" class="experiment-form" aria-label="Preparar la comparación de ráfagas" novalidate hidden>
+      <div class="experiment-inputs">
+        <label>Carga del apunte<select id="estimateCase">
+          <option value="disco">CPU y disco · ms</option><option value="convoy">Efecto convoy · s</option>
+        </select></label>
+        <label>Política<select id="estimatePolicy"><option>STCF</option><option>SJF</option></select></label>
+        <label><span>Estimación inicial (<span id="initialUnit">ms</span>)</span><input id="initialEstimate" type="number" min="1" max="300" value="20" required></label>
+        <label>Peso de la última ráfaga<select id="alpha">
+          <option value="0">0 %</option><option value="0.25">25 %</option><option value="0.5" selected>50 %</option><option value="0.75">75 %</option><option value="1">100 %</option>
+        </select></label>
+        <button type="submit" id="applyEstimate" class="secondary">Aplicar y reproducir</button>
+      </div>
+      <p>El oráculo conoce las duraciones de la carga. Para esta comparación, la otra corrida combina la última ráfaga medida de cada proceso con su estimación anterior.</p>
+      <p id="estimateError" class="formerror" role="alert" hidden></p>
     </form>
 
     <div class="playbar" role="group" aria-label="Controles de reproducción">

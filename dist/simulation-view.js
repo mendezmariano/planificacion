@@ -4,6 +4,8 @@
   const el = id => document.getElementById(id);
   const numbers = new Intl.NumberFormat('es-AR', {maximumFractionDigits:2});
   const fmt = value => numbers.format(value);
+  const estimateNumber = new Intl.NumberFormat('es-AR', {maximumFractionDigits:8});
+  const fmtEstimate = value => estimateNumber.format(value);
   const status = {listo:'En espera', ejecutando:'En ejecución', terminado:'Terminó', bloqueado:'Espera E/S'};
   const letter = id => '<span class="letter" data-id="'+id+'">'+id+'</span>';
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -126,7 +128,39 @@
       '<p class="io-detail">Porcentaje del tiempo en cambios · <b>'+share+'</b></p></section>';
   }
 
+  function estimateAccounts(s, context, unit) {
+    return s.jobs.filter(j => j.state !== 'nuevo').map(j => {
+      const {estimate, served, remaining, observation} = j.prediction;
+      const parts = ['<section class="metric estimate-job" data-for="'+j.id+'"><h3>'+letter(j.id)+status[j.state]+'</h3>'];
+      if (!observation) {
+        parts.push('<p>Última ráfaga de CPU medida · Pendiente</p><div class="sum"><small>Estimación inicial</small><div class="formula">'+context.initial+' '+unit+'</div></div>');
+      } else {
+        parts.push('<p>En '+fmt(observation.at)+' '+unit+' terminó una ráfaga de <b>'+fmt(observation.actual)+' '+unit+'</b> de CPU.</p>');
+        if (observation.next !== null) {
+          parts.push('<div class="sum"><small>Última ráfaga medida y estimación anterior, con sus pesos</small><div class="formula">'+
+            fmt(context.alpha)+' × '+fmt(observation.actual)+' + '+fmt(1-context.alpha)+' × '+fmtEstimate(observation.prior)+' = '+fmtEstimate(observation.next)+' '+unit+'</div></div>');
+        } else {
+          parts.push('<p>La estimación para esa última ráfaga era de '+fmtEstimate(observation.prior)+' '+unit+'.</p>');
+        }
+      }
+      if (remaining !== null) {
+        const difference = fmtEstimate(estimate)+' − '+fmt(served);
+        const expression = served > estimate ? 'máx(0, '+difference+')' : difference;
+        parts.push('<p class="estimate-remaining">Restante estimado · '+expression+' = <b>'+fmtEstimate(remaining)+' '+unit+'</b></p>'+
+          '<p>Restante real de la carga · '+fmt(j.burst+served)+' − '+fmt(served)+' = <b>'+fmt(j.burst)+' '+unit+'</b></p>');
+        if (served >= estimate && j.burst > 0) parts.push('<p>La ráfaga sigue abierta. El restante estimado se mantiene en cero hasta que termine.</p>');
+      } else if (j.state === 'bloqueado') {
+        parts.push('<p>Para su próxima ráfaga de CPU se estiman '+fmtEstimate(estimate)+' '+unit+'.</p>');
+      }
+      return parts.join('')+'</section>';
+    }).join('');
+  }
+
   function makeCalculations(work, result, context, reading, quantum) {
+    if (context.kind === 'estimate') {
+      el('accountContext').textContent = 'Estimación inicial de '+context.initial+' '+work.unit+' · peso de la última ráfaga '+fmt(100*context.alpha)+' %';
+      return s => { el('calculations').innerHTML = estimateAccounts(s,context,work.unit); };
+    }
     if (context.kind === 'experiment') {
       el('accountContext').textContent = 'Round Robin · cuanto de '+quantum+' ms · costo por cambio de '+result.switchCost+' ms';
       return s => { el('calculations').innerHTML = switchHTML(s, result.switchCost, quantum); };
@@ -157,7 +191,34 @@
     };
   }
 
-  function makeComparison(work, caseId, policy, quantum, reading) {
+  const field = (key, label, value) => '<div><dt>'+label+'</dt><dd class="formula" data-field="'+key+'">'+value+'</dd></div>';
+
+  function makeEstimateComparison(work, policy) {
+    el('comparison').hidden = false;
+    el('comparisonHint').hidden = false;
+    el('comparisonHint').textContent = 'Misma política y mismo reloj. El oráculo usa las duraciones reales de la carga.';
+    el('comparisonPolicies').innerHTML = ['Con estimaciones','Con oráculo'].map((label,i) =>
+      '<section data-model="'+(i ? 'oracle' : 'estimate')+'"><h3>'+policy+' · '+label+'</h3><dl></dl></section>').join('');
+    el('comparisonNote').textContent = policy === 'STCF' ? 'En cada llegada o desbloqueo, STCF compara los restantes y puede desalojar al que ejecuta.' :
+      'SJF espera a que la CPU quede libre para elegir la próxima ráfaga.';
+    const lists = el('comparisonPolicies').querySelectorAll('dl');
+    return (observed, time, known) => {
+      el('comparisonTime').textContent = fmt(time)+' '+work.unit;
+      [observed,known].forEach((s,i) => {
+        const ended = s.jobs.every(j => j.finish !== null);
+        const active = s.jobs.filter(j => j.state === 'ejecutando' || j.state === 'listo');
+        const terms = active.map(j => j.id+' '+fmtEstimate(i ? j.burst : j.prediction.remaining)+' '+work.unit);
+        lists[i].innerHTML = field('cpu','CPU',ended ? 'Lote terminado' : s.frame.cpu || 'Ociosa')+
+          field('remaining',i ? 'Restantes reales' : 'Restantes estimados',terms.join(' · ') || '—')+
+          field('finish','Retorno medio',meanHTML(s.jobs,'finish',work.unit))+
+          field('end','Fin del lote',ended ? fmt(s.time)+' '+work.unit : 'Pendiente');
+      });
+    };
+  }
+
+  function makeComparison(work, caseId, policy, quantum, reading, reference) {
+    if (reference) return makeEstimateComparison(work,policy);
+    el('comparisonHint').textContent = 'Los puntos (…) indican un tiempo todavía pendiente.';
     const figures = root.CpuChapter.figures.filter(f => f.caseId === caseId);
     const side = figures.findIndex(f => f.policy === policy);
     const panel = el('comparison');
@@ -179,7 +240,6 @@
       return '<section data-policy="'+f.policy+'"><h3>'+name+' <small>'+reference+'</small></h3><dl></dl></section>';
     }).join('');
     const lists = cards.querySelectorAll('dl');
-    const field = (key, label, value) => '<div><dt>'+label+'</dt><dd class="formula" data-field="'+key+'">'+value+'</dd></div>';
     let previous = [];
     return function drawComparison(s) {
       el('comparisonTime').textContent = fmt(s.time)+' '+work.unit;
@@ -210,18 +270,22 @@
     return node;
   }
 
-  function makeTimeline(result, trace, context, unit) {
+  function makeTimeline(result, trace, context, unit, reference) {
     const container = el('timeline');
     const hasDisk = result.diskSegments.length > 0;
     const terminal = context.figure === '7.6' || context.figure === '7.7';
     const bookExtent = hasDisk ? 140 : terminal ? 30 : 120;
-    const extent = context.figure ? bookExtent : result.end;
-    const experimental = context.kind === 'experiment';
-    const shortest = experimental ? Math.min(...trace.cpuRuns.map(s => s.end-s.start)) : extent;
+    const extent = context.figure ? bookExtent : Math.max(result.end,reference?.result.end ?? 0);
+    const experimental = context.kind === 'experiment' || !!reference;
+    const lanes = [{list:trace.cpuRuns, label:reference ? 'CPU estim.' : 'CPU'}];
+    if (reference) lanes.push({list:reference.trace.cpuRuns, label:'CPU oráculo'});
+    if (hasDisk) {
+      lanes.push({list:result.diskSegments, label:reference ? 'Disco estim.' : 'Disco'});
+      if (reference) lanes.push({list:reference.result.diskSegments, label:'Disco oráculo'});
+    }
+    const shortest = experimental ? Math.min(...lanes.flatMap(l => l.list.map(s => s.end-s.start))) : extent;
     const margin = experimental ? Math.max(18,String(extent).length*4+5) : 16;
-    const left = hasDisk ? 46 : experimental ? margin : 14;
-    const lanes = [{list:trace.cpuRuns, label:'CPU'}];
-    if (hasDisk) lanes.push({list:result.diskSegments, label:'Disco'});
+    const left = reference ? 100 : hasDisk ? 46 : experimental ? margin : 14;
     const height = 35 + 23*lanes.length;
     let width, plot, svg, marker, origin, range;
     const x = t => left + plot*(t-origin)/range;
@@ -248,9 +312,9 @@
       svgElement('text', {x:x(origin+range), y:height-4, 'font-size':12, 'text-anchor':'middle'}, svg, origin+range);
       lanes.forEach((lane,i) => {
         lane.y = 8+i*23;
-        if (hasDisk) svgElement('text',{x:0,y:lane.y+15,'font-size':12},svg,lane.label);
+        if (hasDisk || reference) svgElement('text',{x:0,y:lane.y+15,'font-size':12},svg,lane.label);
         svgElement('rect',{x:left,y:lane.y,width:plot,height:19,fill:'#eeeee4',stroke:'#bfc0b1'},svg);
-        lane.layer = svgElement('g',{},svg);
+        lane.layer = svgElement('g',{'data-lane':lane.label},svg);
         lane.parts = [];
         const first = lane.list.findIndex(span => span.end > origin);
         lane.first = first < 0 ? lane.list.length : first;
@@ -293,5 +357,5 @@
     };
   }
 
-  root.CpuView = {fmt, makeJobs, makeCalculations, makeComparison, makeTimeline};
+  root.CpuView = {fmt, fmtEstimate, makeJobs, makeCalculations, makeComparison, makeTimeline};
 })(globalThis);

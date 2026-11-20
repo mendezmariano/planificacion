@@ -63,11 +63,18 @@
         const state = frame.jobs[job.index];
         const cpu = elapsedAt(job.cpu, time);
         const burst = state.state === 'ejecutando' ? state.remaining - (time - frame.t) : state.remaining;
-        return {
+        const row = {
           id:job.id, arrival:job.arrival, demand:job.demand, usesDisk:job.usesDisk, state:state.state,
           first:state.first, finish:state.finish, burst,
           cpu, left:job.demand - cpu.total, wait:elapsedAt(job.ready, time), io:elapsedAt(job.io, time)
         };
+        if (state.prediction) {
+          const {estimate, observation} = state.prediction;
+          const served = state.prediction.served + (state.state === 'ejecutando' ? time-frame.t : 0);
+          const eligible = state.state === 'ejecutando' || state.state === 'listo';
+          row.prediction = {estimate, observation, served, remaining:eligible ? Math.max(0, estimate-served) : null};
+        }
+        return row;
       });
       const busy = rows.reduce((sum, job) => sum + job.cpu.total, 0);
       const completedSwitches = lastAt(switches, time, 'end') + 1;

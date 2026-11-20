@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {cases, simulate, cpuJobs} = require('../dist/engine.js');
+const {cases, simulate, simulateEstimated, cpuJobs} = require('../dist/engine.js');
 const {readTrace} = require('../dist/trace.js');
 const figures = require('./fixtures/chapter7.js');
 
@@ -55,6 +55,26 @@ test('Una llegada durante una ráfaga de SJF deja una sola barra continua', () =
   const trace = readTrace(jobs,simulate(jobs,'SJF'));
   assert.deepEqual(trace.cpuRuns[0],{id:'A',start:0,end:100});
   assert.deepEqual(trace.at(40).jobs[0].cpu,{prior:0,start:0,end:40,total:40});
+});
+
+test('La proyección de las estimaciones reconstruye la historia sin adelantar observaciones', () => {
+  const inputs = cases.disco.jobs;
+  const trace = readTrace(inputs,simulateEstimated(inputs,'STCF',{initial:20,alpha:0.5}));
+  const expected = [
+    [100,11.25,11.25,null,0], [70,12.5,null,null,0], [35,15,15,0,25],
+    [20.5,15,15,9.5,39.5], [10,15,null,20,50], [9.5,20,10.5,20,50], [0,20,20,20,50]
+  ];
+  for (const [time,estimate,aLeft,bLeft,bReal] of expected) {
+    const [a,b] = trace.at(time).jobs;
+    assert.deepEqual([a.prediction.estimate,a.prediction.remaining,b.prediction.remaining,b.burst],[estimate,aLeft,bLeft,bReal]);
+    assert.equal(a.prediction.observation === null,time < 10);
+    assert.equal(b.prediction.observation === null,time < 60);
+  }
+  const [a,b] = trace.at(130).jobs;
+  assert.equal(a.prediction.observation.actual,10);
+  assert.equal(b.prediction.observation.actual,50);
+  assert.equal(trace.at(30).jobs[1].prediction.remaining,0);
+  assert.deepEqual(trace.at(5).jobs[0].prediction,{estimate:20,served:5,remaining:15,observation:null});
 });
 
 test('Carga propia con inactividad y llegadas fuera del orden de edición', () => {
