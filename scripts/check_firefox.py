@@ -18,8 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Firefox:
-    def __init__(self, address):
+    def __init__(self, address, lab_root):
         self.address = address
+        self.lab_root = lab_root
         self.session = None
 
     def request(self, method, path, payload=None, session=True):
@@ -79,7 +80,7 @@ class Firefox:
         path.write_bytes(base64.b64decode(self.request('GET', suffix)))
 
     def open(self, query=''):
-        self.request('POST', '/url', {'url': (ROOT / 'dist/index.html').as_uri() + query})
+        self.request('POST', '/url', {'url': (self.lab_root / 'dist/index.html').as_uri() + query})
 
 
 def wait_for(predicate, description, timeout=6):
@@ -371,11 +372,29 @@ def check_comparison(browser, report):
     report['checks'].append('E/S en serie y STCF con el reloj limitado al fin de cada lote')
 
 
+def check_chapter_pdf(browser):
+    source = Path('recursos/Capitulo_7_Planificacion_ES.pdf')
+    pdf = browser.lab_root / source
+    assert pdf.read_bytes() == (ROOT / source).read_bytes()
+    assert browser.execute("return document.getElementById('chapterPdf').href") == pdf.as_uri()
+    lab = browser.request('GET', '/window')
+    browser.click('#chapterPdf')
+    wait_for(lambda: len(browser.request('GET', '/window/handles')) == 2, 'apertura del apunte en otra pestaña')
+    tab = next(h for h in browser.request('GET', '/window/handles') if h != lab)
+    browser.request('POST', '/window', {'handle': tab})
+    wait_for(lambda: browser.request('GET', '/url') == pdf.as_uri(), 'navegación al PDF local')
+    wait_for(lambda: browser.execute("return !!document.querySelector('#viewer .page[data-page-number=\"1\"]')"),
+             'primera página del capítulo en el visor de Firefox', timeout=15)
+    browser.request('DELETE', '/window')
+    browser.request('POST', '/window', {'handle': lab})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--firefox', default=shutil.which('firefox'))
     parser.add_argument('--geckodriver', default=shutil.which('geckodriver'))
     parser.add_argument('--output-dir', type=Path, required=True)
+    parser.add_argument('--lab-root', type=Path, default=ROOT, help='Carpeta que contiene dist/ y recursos/ del laboratorio')
     parser.add_argument('--headed', action='store_true', help='Mostrar la ventana de prueba')
     args = parser.parse_args()
     if not args.firefox or not args.geckodriver:
@@ -391,7 +410,7 @@ def main():
             port = sock.getsockname()[1]
         with (output / 'geckodriver.log').open('w') as log:
             process = subprocess.Popen([args.geckodriver, '--host', '127.0.0.1', '--port', str(port)], stdout=log, stderr=log)
-        browser = Firefox('http://127.0.0.1:' + str(port))
+        browser = Firefox('http://127.0.0.1:' + str(port), args.lab_root.resolve())
         def driver_ready():
             if process.poll() is not None:
                 raise RuntimeError('geckodriver terminó; revisá geckodriver.log')
@@ -449,6 +468,9 @@ def main():
             resources = browser.execute("return performance.getEntriesByType('resource').map(r=>r.name);")
             assert all(url.startswith('file:') for url in resources), resources
             report['checks'].append(f'Apertura file:// y recursos locales a {width} px')
+            report['stage'] = 'Apunte del paquete a ' + str(width) + ' px'
+            check_chapter_pdf(browser)
+            report['checks'].append(f'El PDF abre en otra pestaña sin red a {width} px')
         report['status'] = 'passed'
         report['stage'] = 'Recorrido completo'
     except Exception as error:
