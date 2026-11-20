@@ -14,6 +14,8 @@ Las 13 láminas de Sistemas Operativos de FIUBA acompañan la lectura de *Operat
 
 Para acompañar la lámina 9, abrí el experimento de Round Robin. Con los valores iniciales, A pide disco a los 10 ms. Entre los 10 y los 11 ms el disco atiende a A mientras la CPU cambia de A a B. En 11 ms empieza la primera ejecución de B. Podés repetir el recorrido con otra cantidad de procesos, otro cuanto y otro costo. [Simular el costo del cambio de contexto](../dist/index.html?experimento=contexto)
 
+Después de la figura 7.9, usá la misma carga para leer «Se acabó el oráculo». En el experimento pausá a los 20 ms. Para B, la cuenta del restante estimado da `20 − 10 = 10 ms`. El restante real de la carga es `50 − 10 = 40 ms`. Mirá a quién le da el siguiente turno cada corrida y cuándo vuelve a usarse el disco. [Comparar la estimación con el oráculo](../dist/index.html?experimento=estimacion)
+
 Para reproducir las dos últimas láminas, elegí **STCF** en **Explorar otra carga o política**. Abrí **Ver o editar carga** e ingresá las filas en este orden.
 
 ```text

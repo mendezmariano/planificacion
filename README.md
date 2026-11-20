@@ -36,7 +36,7 @@ python3 scripts/check_firefox.py --output-dir /tmp/planificacion-firefox-review
 
 Si los ejecutables están fuera de `PATH`, indicá `--firefox /ruta/a/firefox` y `--geckodriver /ruta/a/geckodriver`. Agregá `--headed` para ver el recorrido. WebDriver usa un puerto local para controlar Firefox.
 
-La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, el experimento de cambio de contexto, los controles, una carga propia, la navegación por teclado y el PDF a 1280 y 360 px de ancho. Para verificar el ZIP, extraelo en una carpeta nueva y agregá `--lab-root /ruta/al/paquete/extraido` al comando. El informe `report.json`, las capturas y `geckodriver.log` quedan en el directorio indicado con `--output-dir`.
+La prueba abre `dist/index.html` desde el disco con el acceso web bloqueado. Recorre las nueve figuras, los experimentos de cambio de contexto y estimación de ráfagas, los controles, una carga propia, la navegación por teclado y el PDF a 1280 y 360 px de ancho. Para verificar el ZIP, extraelo en una carpeta nueva y agregá `--lab-root /ruta/al/paquete/extraido` al comando. El informe `report.json`, las capturas y `geckodriver.log` quedan en el directorio indicado con `--output-dir`.
 
 ## Recorrido
 
@@ -67,6 +67,14 @@ Elegí **RR · Costo del cambio de contexto** en el menú. Podés combinar de un
 Elegí el cuanto de Round Robin (1 a 300 ms) y el costo de cada cambio (0 a 300 ms). **Aplicar y reproducir** inicia la nueva corrida. El Gantt marca cada cambio con **CC**. Mientras pasa ese intervalo, los procesos listos acumulan espera y el disco sigue trabajando. El panel suma CPU útil, cambios y CPU ociosa hasta el instante que marca el reloj.
 
 Para ver el efecto del cuanto, probá con dos procesos solo CPU y 2 ms por cambio. Con un cuanto de 10 ms hay nueve cambios y el lote dura `100 + 9 × 2 = 118 ms`. Con 25 ms hay tres cambios y dura `100 + 3 × 2 = 106 ms`. En ambos casos se ejecutan los mismos 100 ms de trabajo.
+
+## Estimar la próxima ráfaga
+
+Elegí **SJF y STCF · Estimar ráfagas**. La sección 7.9 plantea cómo planificar cuando el sistema desconoce las duraciones. Para explorar esa pregunta, el laboratorio usa un promedio por proceso. Cada vez que un proceso termina una ráfaga y pide disco, calcula la próxima estimación con `α × CPU observada + (1 − α) × estimación anterior`. Podés elegir la política, la carga, la estimación inicial y el peso α. [Abrir el experimento](dist/index.html?experimento=estimacion)
+
+La corrida inicial usa STCF, la carga de la figura 7.9, una estimación de 20 ms y un peso del 50 %. A ejecuta 10 ms y pide disco. Para su próxima ráfaga calcula `0,5 × 10 + 0,5 × 20 = 15 ms`. Cuando A vuelve a listos en 20 ms, B ya consumió 10 ms de su estimación de 20 ms. STCF sigue con B. En la referencia con oráculo, a B le quedan 40 ms reales y A necesita 10 ms, por lo que ejecuta A. Los carriles de CPU y disco muestran ambas decisiones sobre el mismo reloj.
+
+Para comparar SJF, elegí **Efecto convoy**. Antes de la primera ejecución los tres procesos tienen la misma estimación. El desempate da el primer turno a A. El oráculo empieza por B y luego ejecuta C. Al final del lote, los retornos medios son 110 s y 50 s respectivamente.
 
 ## Continuar con Codex
 

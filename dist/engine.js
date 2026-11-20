@@ -3,6 +3,18 @@
   'use strict';
   const POLICIES = ['FIFO', 'SJF', 'STCF', 'RR', 'SERIE'];
   function simulate(input, policy, quantum = 1, switchCost = 0) {
+    return run(input, policy, quantum, switchCost, null);
+  }
+
+  function simulateEstimated(input, policy, settings) {
+    if (policy !== 'SJF' && policy !== 'STCF') throw Error('Elegí SJF o STCF para estimar ráfagas.');
+    const {initial, alpha} = settings ?? {};
+    if (!Number.isInteger(initial) || initial < 1 || initial > 300) throw Error('Usá una estimación inicial entera de 1 a 300.');
+    if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw Error('El peso de la última ráfaga debe estar entre 0 y 1.');
+    return run(input, policy, 1, 0, {initial, alpha});
+  }
+
+  function run(input, policy, quantum, switchCost, estimator) {
     if (!POLICIES.includes(policy)) throw Error('Política desconocida.');
     if (!Number.isSafeInteger(quantum) || quantum < 1 || quantum > 300) throw Error('El cuanto debe ser un entero de 1 a 300.');
     if (!Number.isSafeInteger(switchCost) || switchCost < 0 || switchCost > 300) throw Error('El costo de cambio debe ser un entero de 0 a 300 ms.');
@@ -14,14 +26,25 @@
       ids.add(j.id);
       if (!Number.isSafeInteger(j.arrival) || j.arrival < 0 || j.arrival > 300) throw Error('La llegada debe ser un entero de 0 a 300.');
       if (!Array.isArray(j.bursts) || !j.bursts.length || j.bursts.length % 2 !== 1 || j.bursts.length > 15 || j.bursts.some(v => !Number.isSafeInteger(v) || v < 1 || v > 300)) throw Error('Las ráfagas deben alternar CPU y E/S, empezar y terminar con CPU y durar de 1 a 300.');
-      return { ...j, index, state: 'nuevo', phase: 0, remaining: j.bursts[0], first: null, finish: null, wait: 0 };
+      return { ...j, index, state: 'nuevo', phase: 0, remaining: j.bursts[0], first: null, finish: null, wait: 0,
+        estimate:estimator?.initial, served:0, observation:null };
     });
     const ready = [], diskQueue = [], cpuSegments = [], diskSegments = [], frames = [];
     const switches = [];
     let switching = null;
     let t = 0, cpu = null, disk = null, diskEnd = Infinity, budget = Infinity, finished = 0;
     const addReady = job => { job.state = 'listo'; ready.push(job); };
-    const order = (a, b) => a.remaining - b.remaining || a.index - b.index;
+    function priority(job) {
+      if (!estimator) return job.remaining;
+      return policy === 'SJF' ? job.estimate : Math.max(0, job.estimate - job.served);
+    }
+    const order = (a, b) => priority(a) - priority(b) || a.index - b.index;
+    function jobState(j) {
+      const remaining = j.state === 'terminado' ? 0 : j.state === 'bloqueado' ? null : j.remaining;
+      const state = {id:j.id, state:j.state, remaining, first:j.first, finish:j.finish, wait:j.wait};
+      if (estimator) state.prediction = {estimate:j.estimate, served:j.served, observation:j.observation};
+      return state;
+    }
     function startDisk() {
       if (disk || !diskQueue.length) return;
       disk = diskQueue.shift();
@@ -40,7 +63,14 @@
       if (switching && switching.end === t) switching = null;
       // Finalizar la ráfaga antes de resolver llegadas, desbloqueos y vencimiento de cuanto.
       if (cpu && cpu.remaining === 0) {
-        if (cpu.phase === cpu.bursts.length - 1) {
+        const finalBurst = cpu.phase === cpu.bursts.length - 1;
+        if (estimator) {
+          const next = finalBurst ? null : cpu.estimate + estimator.alpha * (cpu.served - cpu.estimate);
+          cpu.observation = {at:t, actual:cpu.served, prior:cpu.estimate, next};
+          if (!finalBurst) cpu.estimate = next;
+          cpu.served = 0;
+        }
+        if (finalBurst) {
           cpu.finish = t; cpu.state = 'terminado'; finished++;
           notes.push(cpu.id + ' termina.');
         } else {
@@ -63,7 +93,8 @@
         addReady(cpu); cpu = null;
       }
       if (cpu && policy === 'STCF' && ready.some(j => order(j, cpu) < 0)) {
-        notes.push('El planificador desaloja a ' + cpu.id + ' (le quedan ' + cpu.remaining + ').');
+        notes.push(estimator ? 'El planificador desaloja a '+cpu.id+' por el restante estimado.' :
+          'El planificador desaloja a ' + cpu.id + ' (le quedan ' + cpu.remaining + ').');
         addReady(cpu); cpu = null;
       }
       if (policy === 'STCF' || policy === 'SJF') ready.sort(order);
@@ -80,7 +111,8 @@
           if (!switching) {
             dispatch(next);
             const why = {FIFO:'por orden de entrada a listos', SJF:'por tener la ráfaga lista más corta', STCF:'por tener el menor tiempo restante de ráfaga', RR:'por estar al frente de la cola', SERIE:'por el orden fijo del ejemplo en serie'};
-            decision = 'Ejecuta ' + next.id + ' ' + why[policy] + '.';
+            const reason = estimator ? (policy === 'SJF' ? 'por la estimación de su ráfaga' : 'por su restante estimado') : why[policy];
+            decision = 'Ejecuta ' + next.id + ' ' + reason + '.';
           }
         }
       }
@@ -88,7 +120,7 @@
       if (!decision && cpu) decision = 'Continúa ' + cpu.id + (policy === 'STCF' ? ': conserva la prioridad por tiempo restante y desempate.' : policy === 'RR' ? ': todavía dispone de cuanto.' : ': conserva la CPU hasta terminar su ráfaga.');
       if (!decision) decision = finished === jobs.length ? 'Todos los trabajos terminaron.' : policy === 'SERIE' && ready.length ? 'La CPU queda ociosa aunque hay un trabajo listo. El ejemplo en serie espera al trabajo anterior.' : 'La CPU queda ociosa hasta el siguiente evento.';
       const sliceRemaining = policy === 'RR' && cpu ? budget : null;
-      frames.push({t, cpu:cpu?.id ?? null, switching, sliceRemaining, disk:disk?.id ?? null, ready:ready.map(j=>j.id), notes, decision, jobs:jobs.map(j=>({id:j.id,state:j.state,remaining:j.state==='terminado'?0:j.state==='bloqueado'?null:j.remaining,first:j.first,finish:j.finish,wait:j.wait}))});
+      frames.push({t, cpu:cpu?.id ?? null, switching, sliceRemaining, disk:disk?.id ?? null, ready:ready.map(j=>j.id), notes, decision, jobs:jobs.map(jobState)});
       if (finished === jobs.length) break;
       const nextArrival = Math.min(...jobs.filter(j=>j.state==='nuevo').map(j=>j.arrival),Infinity);
       const nextTime = Math.min(nextArrival, diskEnd, switching?.end ?? Infinity, cpu ? t + Math.min(cpu.remaining, budget) : Infinity);
@@ -97,7 +129,11 @@
       const segment = {start:t, end:nextTime, id:cpu?.id ?? null};
       if (switching) segment.switching = switching;
       cpuSegments.push(segment);
-      if (cpu) { cpu.remaining -= elapsed; budget -= elapsed; }
+      if (cpu) {
+        cpu.remaining -= elapsed;
+        budget -= elapsed;
+        if (estimator) cpu.served += elapsed;
+      }
       ready.forEach(j=>{j.wait += elapsed;});
       t = nextTime;
     }
@@ -124,7 +160,7 @@
       id:String.fromCharCode(65+i), arrival:0, bursts:[...(i < ioCount ? ioJob : cpuJob).bursts]
     }));
   }
-  const api = {simulate, cases, cpuJobs, contextSwitchJobs};
+  const api = {simulate, simulateEstimated, cases, cpuJobs, contextSwitchJobs};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CpuLab = api;
 })(globalThis);

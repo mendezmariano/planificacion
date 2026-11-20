@@ -1,8 +1,8 @@
 'use strict';
 (() => {
-  const {cases, simulate, contextSwitchJobs} = window.CpuLab;
+  const {cases, simulate, simulateEstimated, contextSwitchJobs} = window.CpuLab;
   const {readings, contextFor} = window.CpuChapter;
-  const {fmt, makeJobs, makeCalculations, makeComparison, makeTimeline} = window.CpuView;
+  const {fmt, fmtEstimate, makeJobs, makeCalculations, makeComparison, makeTimeline} = window.CpuView;
   const el = id => document.getElementById(id);
   const rules = {
     FIFO:['Primero en entrar, primero en salir','Ejecuta la primera ráfaga que entró a listos. Una nueva llegada espera hasta que la CPU quede libre.'],
@@ -23,6 +23,7 @@
     picker.add(option);
   }
   picker.add(new Option('RR · Costo del cambio de contexto', 'contexto'));
+  picker.add(new Option('SJF y STCF · Estimar ráfagas', 'estimacion'));
   const variantOption = new Option('Variante o carga propia', 'variante');
   variantOption.disabled = true;
   picker.add(variantOption);
@@ -32,19 +33,31 @@
   let custom = {name:'Carga propia', unit:'s', jobs:cases.convoy.jobs};
   let work, result, trace, context, snapshot, drawJobs, drawCalculations, drawComparison, drawTimeline;
   let policy, caseId, quantum = 1, reading;
+  let clock = 0, endTime, eventTimes, oracle, oracleSnapshot;
   let playback = null;
   let request = null;
   const experimentFields = ['cpuCount', 'ioCount', 'slice', 'switchCost'];
   const readExperiment = () => Object.fromEntries(experimentFields.map(id => [id, el(id).valueAsNumber]));
   let experiment = readExperiment();
+  function readEstimation() {
+    return {caseId:el('estimateCase').value, policy:el('estimatePolicy').value,
+      initial:el('initialEstimate').valueAsNumber, alpha:Number(el('alpha').value)};
+  }
+  let estimation = readEstimation();
 
   function describeEvent({frame, index}) {
     const current = frame.jobs.find(j => j.id === frame.cpu);
     const dispatched = result.frames[index-1]?.cpu !== frame.cpu;
     if (current && (policy === 'STCF' || (policy === 'SJF' && dispatched))) {
-      const tied = frame.jobs.filter(j => (j.state === 'listo' || j === current) && j.remaining === current.remaining);
-      if (tied.length > 1) return new Intl.ListFormat('es-AR').format(tied.map(j => j.id))+' empatan en '+current.remaining+' '+work.unit+
+      const eligible = frame.jobs.filter(j => j.state === 'listo' || j === current);
+      const priority = j => j.prediction ? Math.max(0,j.prediction.estimate-j.prediction.served) : j.remaining;
+      const tied = eligible.filter(j => priority(j) === priority(current));
+      if (tied.length > 1) return new Intl.ListFormat('es-AR').format(tied.map(j => j.id))+' empatan en '+fmtEstimate(priority(current))+' '+work.unit+(current.prediction ? ' estimados' : '')+
         '. Ejecuta '+current.id+' por orden de carga.';
+      if (current.prediction && eligible.length > 1) {
+        const terms = eligible.map(j => j.id+' '+fmtEstimate(priority(j))+' '+work.unit).join(' · ');
+        return (dispatched ? 'Ejecuta ' : 'Sigue ')+current.id+'. '+(policy === 'SJF' ? 'Ráfagas estimadas' : 'Restantes estimados')+' · '+terms+'.';
+      }
     }
     return frame.decision;
   }
@@ -60,7 +73,7 @@
     const intervals = list => list.filter(span => span.start < s.time).map(span =>
       [span.start, fmt(Math.min(s.time, span.end)), activity(span.id,span.switching)]);
     const listTable = list => list.length ? table(['Desde','Hasta','Trabajo'],list) : '<p>Todavía no hay intervalos transcurridos.</p>';
-    el('techbody').innerHTML = '<h3>Estado en '+fmt(s.time)+' '+unit+'</h3><p>Cola de listos · <b id="ready">'+(s.frame.ready.join(', ') || 'Vacía')+
+    el('techbody').innerHTML = '<h3>Estado '+(oracle ? 'con estimaciones ' : '')+'en '+fmt(s.time)+' '+unit+'</h3><p>Cola de listos · <b id="ready">'+(s.frame.ready.join(', ') || 'Vacía')+
       '</b>　 CPU · <b id="cpu">'+activity(s.frame.cpu,s.frame.switching)+'</b>　 Disco · <b id="disk">'+(s.frame.disk || 'Libre')+'</b></p>'+
       table(['Trabajo','Llegada','Ráfagas','Estado','Ráfaga restante','Espera en listos'],rows)+
       '<h3>Intervalos de CPU ('+unit+')</h3>'+listTable(intervals(result.cpuSegments))+
@@ -71,6 +84,7 @@
     const perJob = '<h3>Por trabajo ('+work.unit+')</h3>'+
       table(['Trabajo','Llegada','Primer uso','Fin','Respuesta','Retorno','Espera en listos'],
         result.metrics.map(j=>[j.id,j.arrival,j.first,j.finish,j.response,j.turnaround,j.wait]));
+    if (caseId === 'estimacion') return perJob;
     if (caseId === 'contexto') {
       if (!result.switchCost) return perJob;
       const free = simulate(work.jobs,'RR',quantum,0);
@@ -90,8 +104,11 @@
 
   function draw(time) {
     const previous = snapshot;
-    snapshot = trace.at(time);
-    const done = time === result.end;
+    const previousOracle = oracleSnapshot;
+    clock = time;
+    snapshot = trace.at(Math.min(time,result.end));
+    oracleSnapshot = oracle ? oracle.trace.at(Math.min(time,oracle.result.end)) : null;
+    const done = time === endTime;
     el('time').textContent = fmt(time)+' '+work.unit;
     el('time').dataset.time = time;
     el('seek').value = Math.floor(time);
@@ -99,24 +116,29 @@
     drawJobs(snapshot);
     drawTimeline(time);
     drawCalculations(snapshot);
-    drawComparison(snapshot);
-    if (!previous || snapshot.index !== previous.index) {
-      const f = snapshot.frame;
+    drawComparison(snapshot,time,oracleSnapshot);
+    if (!previous || snapshot.index !== previous.index || oracleSnapshot?.index !== previousOracle?.index) {
+      const other = oracleSnapshot?.frame;
+      const onlyOracle = other && other.t > snapshot.frame.t;
+      const f = onlyOracle ? other : snapshot.frame;
       el('eventTime').textContent = f.t+' '+work.unit;
-      el('decision').textContent = describeEvent(snapshot);
-      el('story').textContent = f.notes.join(' ');
+      el('decision').textContent = onlyOracle ? 'Oráculo · '+f.decision : describeEvent(snapshot);
+      const notes = [...f.notes];
+      if (other && other.t === snapshot.frame.t && other.cpu && other.cpu !== snapshot.frame.cpu) notes.push('Con oráculo ejecuta '+other.cpu+'.');
+      if (onlyOracle && snapshot.frame.cpu) notes.push('Con estimaciones sigue '+snapshot.frame.cpu+'.');
+      el('story').textContent = notes.join(' ');
     }
     el('prev').disabled = time === 0;
     el('next').disabled = done;
     el('end').disabled = done;
     el('results').hidden = !done;
-    if (done && previous?.time !== time) el('resultTables').innerHTML = resultsHTML();
+    if (done) el('resultTables').innerHTML = resultsHTML();
     drawTechnical();
   }
 
   function setPlayLabel() {
     const running = playback !== null;
-    const title = running ? 'Pausar' : snapshot?.time === result.end ? 'Repetir' : snapshot?.time > 0 ? 'Reanudar' : 'Reproducir';
+    const title = running ? 'Pausar' : clock === endTime ? 'Repetir' : clock > 0 ? 'Reanudar' : 'Reproducir';
     el('play').textContent = (running ? 'Ⅱ ' : '▷ ')+title;
     el('play').setAttribute('aria-label', title);
   }
@@ -143,7 +165,7 @@
     run.last = stamp;
     // El mismo décimo de unidad alimenta el reloj, el color y todas las operaciones.
     const visible = Math.floor(run.time*10)/10;
-    if (visible !== snapshot.time) draw(visible);
+    if (visible !== clock) draw(visible);
     if (run.time >= run.target) {
       stop();
       setPlayLabel();
@@ -152,7 +174,7 @@
 
   function playTo(target, stepping = false) {
     stop();
-    const from = snapshot.time;
+    const from = clock;
     const baseRate = caseId === 'terminales' ? 1 : caseId === 'iguales' ? 2.5 : 5;
     // A 1×, Siguiente recorre un intervalo en hasta 0,65 s. El selector escala también ese recorrido.
     const rateAt1x = stepping ? Math.max(baseRate, (target - from) / 0.65) : baseRate;
@@ -204,17 +226,51 @@
     startScenario();
   }
 
-  function startScenario() {
+  function startEstimation(values) {
+    const load = cases[values.caseId];
+    const run = simulateEstimated(load.jobs,values.policy,values);
+    const known = simulate(load.jobs,values.policy);
+    estimation = values;
+    el('estimateCase').value = values.caseId;
+    el('estimatePolicy').value = values.policy;
+    el('initialEstimate').value = values.initial;
+    el('alpha').value = String(values.alpha);
+    el('initialUnit').textContent = load.unit;
+    el('estimateError').hidden = true;
+    caseId = 'estimacion';
+    policy = values.policy;
+    reading = null;
+    work = load;
+    result = run;
+    context = {
+      kind:'estimate', title:'Estimar la próxima ráfaga', reference:'Sección 7.9 · Experimento con '+policy,
+      load:contextFor(values.caseId,policy,1).load, alpha:values.alpha, initial:values.initial,
+      rule:policy === 'SJF' ? 'SJF elige la ráfaga estimada más corta y la deja terminar.' :
+        'STCF compara el restante estimado de los trabajos listos y del que está ejecutando.',
+      assumptions:'Cada proceso conserva su propia historia. Al completar una ráfaga, el promedio pondera la CPU observada y la estimación anterior. Un desalojo conserva el servicio acumulado. El restante estimado tiene un mínimo de cero. En un empate se respeta el orden de carga.'
+    };
+    startScenario({result:known, trace:window.CpuTrace.readTrace(work.jobs,known)});
+  }
+
+  function startScenario(reference) {
     stop();
-    const experimental = caseId === 'contexto';
+    oracle = reference;
+    oracleSnapshot = null;
+    const switches = caseId === 'contexto';
+    const estimating = caseId === 'estimacion';
     trace = window.CpuTrace.readTrace(work.jobs,result);
-    picker.value = experimental ? 'contexto' : reading || 'variante';
-    el('experiment').hidden = !experimental;
-    el('settings').hidden = experimental;
-    el('switchKey').hidden = !experimental;
+    eventTimes = result.frames.map(f => f.t);
+    if (reference) eventTimes = [...new Set([...eventTimes,...reference.result.frames.map(f => f.t)])].sort((a,b) => a-b);
+    endTime = eventTimes.at(-1);
+    picker.value = switches || estimating ? caseId : reading || 'variante';
+    el('experiment').hidden = !switches;
+    el('estimation').hidden = !estimating;
+    el('settings').hidden = switches || estimating;
+    el('switchKey').hidden = !switches;
+    el('accountTitle').textContent = estimating ? 'Cómo se estima cada ráfaga' : 'Cálculo de tiempos';
     el('chapterTitle').textContent = context.title || work.name+' · '+policy;
     el('chapterReference').textContent = context.kind === 'custom' ? 'Carga propia · '+policy : context.reference;
-    el('chapterLoad').textContent = context.load+(policy === 'RR' && !experimental ? ' El cuanto es de '+quantum+' '+work.unit+'.' : '');
+    el('chapterLoad').textContent = context.load+(policy === 'RR' && !switches ? ' El cuanto es de '+quantum+' '+work.unit+'.' : '');
     el('chapterMode').textContent = context.mode || '';
     el('chapterConfiguration').textContent = context.configuration || '';
     el('chapterAssumptions').textContent = context.assumptions;
@@ -222,7 +278,7 @@
     el('chapterNote').hidden = !context.note;
     el('jobOrder').textContent = 'En orden de llegada'+(result.diskSegments.length ? ' · las barras miden ejecución de CPU' : '');
     el('axisUnit').textContent = '('+work.unit+')';
-    el('seek').max = result.end;
+    el('seek').max = endTime;
     const next = reading && readings[readings.findIndex(r => r.key === reading)+1];
     el('continue').hidden = !next;
     if (next) {
@@ -231,16 +287,17 @@
     }
     document.title = el('chapterTitle').textContent+' · Turno de CPU';
     snapshot = null;
-    drawJobs = makeJobs(trace.at(0).jobs, work.unit, experimental);
-    drawTimeline = makeTimeline(result,trace,context,work.unit);
+    drawJobs = makeJobs(trace.at(0).jobs, work.unit, switches);
+    drawTimeline = makeTimeline(result,trace,context,work.unit,reference);
     drawCalculations = makeCalculations(work,result,context,reading,quantum);
-    drawComparison = makeComparison(work,caseId,policy,quantum,reading);
+    drawComparison = makeComparison(work,caseId,policy,quantum,reading,reference);
     draw(0);
-    playTo(result.end);
+    playTo(endTime);
   }
 
   function selectReading(key) {
     if (key === 'contexto') return startExperiment(experiment);
+    if (key === 'estimacion') return startEstimation(estimation);
     const entry = readings.find(r => r.key === key);
     el('policy').value = entry.policy;
     el('case').value = entry.caseId;
@@ -259,21 +316,28 @@
       el('experimentError').hidden = false;
     }
   };
+  el('estimateCase').onchange = () => { el('initialUnit').textContent = cases[el('estimateCase').value].unit; };
+  el('estimation').onsubmit = event => {
+    event.preventDefault();
+    try {
+      startEstimation(readEstimation());
+    } catch (error) {
+      el('estimateError').textContent = error.message;
+      el('estimateError').hidden = false;
+    }
+  };
   el('policy').onchange = el('case').onchange = el('q').onchange = () => configure();
   el('play').onclick = () => {
     if (playback) { stop(); setPlayLabel(); }
     else {
-      if (snapshot.time === result.end) draw(0);
-      playTo(result.end);
+      if (clock === endTime) draw(0);
+      playTo(endTime);
     }
   };
   el('reset').onclick = () => seek(0);
-  el('end').onclick = () => seek(result.end);
-  el('prev').onclick = () => {
-    const index = snapshot.time === snapshot.frame.t ? snapshot.index-1 : snapshot.index;
-    seek(result.frames[Math.max(0,index)].t);
-  };
-  el('next').onclick = () => playTo(result.frames[snapshot.index+1].t, true);
+  el('end').onclick = () => seek(endTime);
+  el('prev').onclick = () => seek(eventTimes.findLast(t => t < clock) ?? 0);
+  el('next').onclick = () => playTo(eventTimes.find(t => t > clock), true);
   el('seek').oninput = () => seek(el('seek').valueAsNumber);
   el('technical').ontoggle = drawTechnical;
   document.addEventListener('visibilitychange', () => { if (playback) playback.last = null; });
@@ -287,7 +351,7 @@
   }
   document.querySelectorAll('[data-help]').forEach(b => b.onclick = () => {
     if (b.dataset.help === 'guide') show('<h2 id="dialogTitle">Guía de uso</h2><p>Elegí una figura del capítulo. Cada trabajo aparece al llegar. Su barra conserva el color en la parte pendiente y se vuelve más clara en la parte ejecutada.</p><p>Pausá el reloj para leer una cuenta. Usá Anterior y Siguiente para recorrer los eventos, o mové el control de tiempo hasta el instante que quieras ver.</p><p>En Explorar otra carga o política podés cambiar el ejemplo o escribir tus propias llegadas y duraciones.</p>');
-    else show('<h2 id="dialogTitle">'+rules[policy][0]+'</h2><p>'+rules[policy][1]+'</p><p>'+context.assumptions+'</p><h3>Los tiempos</h3><p>El retorno se cuenta desde la llegada hasta el fin del trabajo. La respuesta se cuenta hasta la primera ejecución. La espera en listos acumula los intervalos en que el trabajo ya puede ejecutar y aguarda su turno.</p><h3>En el mismo instante</h3><p>Primero se reconocen los fines de ráfaga, luego las llegadas en orden de carga, los desbloqueos y el vencimiento del cuanto. Después se elige quién usa la CPU.</p>');
+    else show('<h2 id="dialogTitle">'+rules[policy][0]+'</h2><p>'+(context.rule || rules[policy][1])+'</p><p>'+context.assumptions+'</p><h3>Los tiempos</h3><p>El retorno se cuenta desde la llegada hasta el fin del trabajo. La respuesta se cuenta hasta la primera ejecución. La espera en listos acumula los intervalos en que el trabajo ya puede ejecutar y aguarda su turno.</p><h3>En el mismo instante</h3><p>Primero se reconocen los fines de ráfaga, luego las llegadas en orden de carga, los desbloqueos y el vencimiento del cuanto. Después se elige quién usa la CPU.</p>');
   });
   el('configBtn').onclick = () => {
     if (caseId === 'disco') {
@@ -319,12 +383,13 @@
 
   const params = new URLSearchParams(location.search);
   const key = params.get('seccion') === '7.6' ? 'respuesta' : params.get('figura');
-  if (params.get('experimento') === 'contexto') selectReading('contexto');
+  const experimentKey = params.get('experimento');
+  if (experimentKey === 'contexto' || experimentKey === 'estimacion') selectReading(experimentKey);
   else if (readings.some(r => r.key === key)) selectReading(key);
   else if (params.has('sim') || params.has('caso')) {
     el('policy').value = Object.hasOwn(rules,params.get('sim')) ? params.get('sim') : 'FIFO';
     el('case').value = Object.hasOwn(cases,params.get('caso')) ? params.get('caso') : 'convoy';
     configure();
   } else selectReading('7.1');
-  new ResizeObserver(() => drawTimeline(snapshot.time)).observe(el('timeline'));
+  new ResizeObserver(() => drawTimeline(clock)).observe(el('timeline'));
 })();
