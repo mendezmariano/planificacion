@@ -81,7 +81,7 @@
   }
 
   function resultsHTML() {
-    const perJob = '<h3>Por trabajo ('+work.unit+')</h3>'+
+    const perJob = '<h3>Por trabajo'+(oracle ? ' con estimaciones' : '')+' ('+work.unit+')</h3>'+
       table(['Trabajo','Llegada','Primer uso','Fin','Respuesta','Retorno','Espera en listos'],
         result.metrics.map(j=>[j.id,j.arrival,j.first,j.finish,j.response,j.turnaround,j.wait]));
     if (caseId === 'estimacion') return perJob;
@@ -276,7 +276,8 @@
     el('chapterAssumptions').textContent = context.assumptions;
     el('chapterNote').textContent = context.note || '';
     el('chapterNote').hidden = !context.note;
-    el('jobOrder').textContent = 'En orden de llegada'+(result.diskSegments.length ? ' · las barras miden ejecución de CPU' : '');
+    el('jobOrder').textContent = estimating ? 'Corrida con estimaciones · las barras miden ejecución real de CPU' :
+      'En orden de llegada'+(result.diskSegments.length ? ' · las barras miden ejecución de CPU' : '');
     el('axisUnit').textContent = '('+work.unit+')';
     el('seek').max = endTime;
     const next = reading && readings[readings.findIndex(r => r.key === reading)+1];

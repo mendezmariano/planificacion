@@ -478,13 +478,21 @@ def check_estimation(browser, report, output, width):
         filename = f'firefox-{width}-{name}.png'
         browser.screenshot(output/filename, selector)
         report['screenshots'].append(filename)
+    scrub(browser, 25)
+    lanes = browser.execute("""return ['CPU estim.', 'CPU oráculo'].map(label =>
+      [...document.querySelectorAll('#timeline [data-lane="' + label + '"] > g')].map(g => g.dataset.id));""")
+    assert lanes == [['A','B'],['A','B','A']], lanes
+    filename = f'firefox-{width}-estimacion-intervalos.png'
+    browser.screenshot(output/filename, '.trace')
+    report['screenshots'].append(filename)
+    scrub(browser, 20)
     browser.select('#speed', '4')
     browser.click('#next')
     wait_for(lambda: snapshot(browser)['t'] == 30, 'la próxima decisión del oráculo también permite avanzar')
     assert browser.text('#eventTime') == '30 ms' and 'Oráculo' in browser.text('#decision')
     scrub(browser, 35)
     assert 'máx(0, 20 − 25) = 0 ms' in browser.text(b)
-    assert 'Restante real de la carga · 25 ms' in browser.text(b)
+    assert 'Restante real de la carga · 50 − 25 = 25 ms' in browser.text(b)
     browser.click('#prev')
     assert snapshot(browser)['t'] == 30
     scrub(browser, 100)

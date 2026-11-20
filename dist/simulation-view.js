@@ -137,7 +137,7 @@
       } else {
         parts.push('<p>En '+fmt(observation.at)+' '+unit+' terminó una ráfaga de <b>'+fmt(observation.actual)+' '+unit+'</b> de CPU.</p>');
         if (observation.next !== null) {
-          parts.push('<div class="sum"><small>Última CPU observada y estimación anterior, con sus pesos</small><div class="formula">'+
+          parts.push('<div class="sum"><small>Última ráfaga medida y estimación anterior, con sus pesos</small><div class="formula">'+
             fmt(context.alpha)+' × '+fmt(observation.actual)+' + '+fmt(1-context.alpha)+' × '+fmtEstimate(observation.prior)+' = '+fmtEstimate(observation.next)+' '+unit+'</div></div>');
         } else {
           parts.push('<p>La estimación para esa última ráfaga era de '+fmtEstimate(observation.prior)+' '+unit+'.</p>');
@@ -147,7 +147,7 @@
         const difference = fmtEstimate(estimate)+' − '+fmt(served);
         const expression = served > estimate ? 'máx(0, '+difference+')' : difference;
         parts.push('<p class="estimate-remaining">Restante estimado · '+expression+' = <b>'+fmtEstimate(remaining)+' '+unit+'</b></p>'+
-          '<p>Restante real de la carga · <b>'+fmt(j.burst)+' '+unit+'</b></p>');
+          '<p>Restante real de la carga · '+fmt(j.burst+served)+' − '+fmt(served)+' = <b>'+fmt(j.burst)+' '+unit+'</b></p>');
         if (served >= estimate && j.burst > 0) parts.push('<p>La ráfaga sigue abierta. El restante estimado se mantiene en cero hasta que termine.</p>');
       } else if (j.state === 'bloqueado') {
         parts.push('<p>Para su próxima ráfaga de CPU se estiman '+fmtEstimate(estimate)+' '+unit+'.</p>');
@@ -314,7 +314,7 @@
         lane.y = 8+i*23;
         if (hasDisk || reference) svgElement('text',{x:0,y:lane.y+15,'font-size':12},svg,lane.label);
         svgElement('rect',{x:left,y:lane.y,width:plot,height:19,fill:'#eeeee4',stroke:'#bfc0b1'},svg);
-        lane.layer = svgElement('g',{},svg);
+        lane.layer = svgElement('g',{'data-lane':lane.label},svg);
         lane.parts = [];
         const first = lane.list.findIndex(span => span.end > origin);
         lane.first = first < 0 ? lane.list.length : first;
