@@ -4,7 +4,7 @@ Laboratorio web de planificación para Sistemas Operativos de FIUBA. Reproduce l
 
 ## Abrir para dar clase
 
-Podés abrir la versión 1.0.0 en el navegador o descargarla para usarla sin conexión. [Abrir el simulador](https://raw.githack.com/mendezmariano/planificacion/4bef5f638a2bd559d73be9eb84bc4e288d76d72c/dist/index.html) · [Descargar v1.0.0 en ZIP](https://github.com/mendezmariano/planificacion/archive/refs/tags/v1.0.0.zip)
+Abrí el laboratorio en GitHub Pages o descargá la versión 1.0.0 para usarla sin conexión. [Abrir el simulador](https://mendezmariano.github.io/planificacion/) · [Descargar v1.0.0 en ZIP](https://github.com/mendezmariano/planificacion/archive/refs/tags/v1.0.0.zip)
 
 Descomprimí el ZIP completo. Entrá en la carpeta **planificacion-1.0.0** y abrí **dist/index.html** en Firefox, Chrome o Edge. El enlace **Apunte del capítulo 7 (PDF)** al pie del laboratorio abre el texto en otra pestaña. Dejá juntas las carpetas `dist/` y `recursos/` para usar el laboratorio y el apunte sin Internet.
 
