@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const {cases, simulate, simulateEstimated, contextSwitchJobs} = window.CpuLab;
-  const {readings, contextFor} = window.CpuChapter;
+  const {readings, figureLabel, contextFor, workloadAssumptions, relaxedAssumptions} = window.CpuChapter;
   const {fmt, fmtEstimate, makeJobs, makeCalculations, makeComparison, makeTimeline} = window.CpuView;
   const el = id => document.getElementById(id);
   const rules = {
@@ -16,8 +16,7 @@
   const picker = el('figure');
   const speed = el('speed');
   for (const r of readings) {
-    const policyName = r.policy === 'SERIE' ? 'E/S en serie' : r.policy;
-    const name = r.key === 'respuesta' ? '§ 7.6 · Respuesta en la figura 7.5' : 'Figura '+r.number+' · '+policyName+' · '+cases[r.caseId].name;
+    const name = figureLabel(r)+' · '+(r.menuDetail ?? cases[r.caseId].name);
     const option = new Option(name, r.key);
     option.title = r.title;
     picker.add(option);
@@ -221,6 +220,7 @@
     context = {
       kind:'experiment', title:work.name, reference:'Secciones 7.7 y 7.8 · Experimento con Round Robin',
       load:'Cada proceso solo CPU necesita una ráfaga de 50 ms. Cada proceso con E/S ejecuta cinco ráfagas de CPU de 10 ms y usa el disco 10 ms entre ráfagas.',
+      assumptionFocus:3, assumptionNote:'RR puede interrumpir una ráfaga al vencer el cuanto de '+values.slice+' ms. El reloj suma '+values.switchCost+' ms cada vez que la CPU pasa directamente de un trabajo a otro.',
       assumptions:'La CPU paga el costo al pasar directamente de un proceso a otro. El primer despacho, la salida de un período ocioso y la renovación del turno del mismo proceso cuestan cero. El disco puede avanzar durante el cambio.'
     };
     startScenario();
@@ -245,11 +245,18 @@
     context = {
       kind:'estimate', title:'Estimar la próxima ráfaga', reference:'Sección 7.9 · Experimento con '+policy,
       load:contextFor(values.caseId,policy,1).load, alpha:values.alpha, initial:values.initial,
+      assumptionFocus:5, assumptionNote:'En la corrida con estimaciones, '+policy+' usa la duración estimada de la próxima ráfaga de cada trabajo. El oráculo usa la duración real.',
       rule:policy === 'SJF' ? 'SJF elige la ráfaga estimada más corta y la deja terminar.' :
         'STCF compara el restante estimado de los trabajos listos y del que está ejecutando.',
       assumptions:'Cada proceso conserva su propia historia. Al completar una ráfaga, el promedio pondera la CPU observada y la estimación anterior. Un desalojo conserva el servicio acumulado. El restante estimado tiene un mínimo de cero. En un empate se respeta el orden de carga.'
     };
     startScenario({result:known, trace:window.CpuTrace.readTrace(work.jobs,known)});
+  }
+
+  function describeRelaxation(numbers) {
+    const labels = numbers.map(n => n+' ('+workloadAssumptions[n-1].label+')');
+    const verb = numbers.length === 1 ? 'relaja el supuesto ' : 'relajan los supuestos ';
+    return verb+new Intl.ListFormat('es-AR').format(labels)+'.';
   }
 
   function startScenario(reference) {
@@ -259,6 +266,15 @@
     const switches = caseId === 'contexto';
     const estimating = caseId === 'estimacion';
     trace = window.CpuTrace.readTrace(work.jobs,result);
+    const jobs = trace.at(0).jobs;
+    const relaxed = relaxedAssumptions(jobs,policy,estimating);
+    const primary = context.assumptionFocus ? [context.assumptionFocus] : relaxed;
+    const others = relaxed.filter(n => !primary.includes(n));
+    el('relaxedAssumptions').textContent = primary.length ? 'Se '+describeRelaxation(primary) :
+      'Se cumplen los cinco supuestos de la sección 7.1.';
+    el('assumptionNote').textContent = context.assumptionNote;
+    el('otherAssumptions').hidden = !others.length;
+    el('otherAssumptions').textContent = others.length ? 'También se '+describeRelaxation(others) : '';
     eventTimes = result.frames.map(f => f.t);
     if (reference) eventTimes = [...new Set([...eventTimes,...reference.result.frames.map(f => f.t)])].sort((a,b) => a-b);
     endTime = eventTimes.at(-1);
@@ -269,7 +285,7 @@
     el('switchKey').hidden = !switches;
     el('accountTitle').textContent = estimating ? 'Cómo se estima cada ráfaga' : 'Cálculo de tiempos';
     el('chapterTitle').textContent = context.title || work.name+' · '+policy;
-    el('chapterReference').textContent = context.kind === 'custom' ? 'Carga propia · '+policy : context.reference;
+    el('chapterReference').textContent = context.reference;
     el('chapterLoad').textContent = context.load+(policy === 'RR' && !switches ? ' El cuanto es de '+quantum+' '+work.unit+'.' : '');
     el('chapterMode').textContent = context.mode || '';
     el('chapterConfiguration').textContent = context.configuration || '';
@@ -288,7 +304,7 @@
     }
     document.title = el('chapterTitle').textContent+' · Turno de CPU';
     snapshot = null;
-    drawJobs = makeJobs(trace.at(0).jobs, work.unit, switches);
+    drawJobs = makeJobs(jobs, work.unit, switches);
     drawTimeline = makeTimeline(result,trace,context,work.unit,reference);
     drawCalculations = makeCalculations(work,result,context,reading,quantum);
     drawComparison = makeComparison(work,caseId,policy,quantum,reading,reference);
@@ -352,6 +368,8 @@
   }
   document.querySelectorAll('[data-help]').forEach(b => b.onclick = () => {
     if (b.dataset.help === 'guide') show('<h2 id="dialogTitle">Guía de uso</h2><p>Elegí una figura del capítulo. Cada trabajo aparece al llegar. Su barra conserva el color en la parte pendiente y se vuelve más clara en la parte ejecutada.</p><p>Pausá el reloj para leer una cuenta. Usá Anterior y Siguiente para recorrer los eventos, o mové el control de tiempo hasta el instante que quieras ver.</p><p>En Explorar otra carga o política podés cambiar el ejemplo o escribir tus propias llegadas y duraciones.</p>');
+    else if (b.dataset.help === 'assumptions') show('<h2 id="dialogTitle">Supuestos sobre la carga de trabajo</h2><p>Sección 7.1 del apunte</p>'+
+      '<ol class="assumption-list">'+workloadAssumptions.map(a => '<li>'+a.statement+'</li>').join('')+'</ol>');
     else show('<h2 id="dialogTitle">'+rules[policy][0]+'</h2><p>'+(context.rule || rules[policy][1])+'</p><p>'+context.assumptions+'</p><h3>Los tiempos</h3><p>El retorno se cuenta desde la llegada hasta el fin del trabajo. La respuesta se cuenta hasta la primera ejecución. La espera en listos acumula los intervalos en que el trabajo ya puede ejecutar y aguarda su turno.</p><h3>En el mismo instante</h3><p>Primero se reconocen los fines de ráfaga, luego las llegadas en orden de carga, los desbloqueos y el vencimiento del cuanto. Después se elige quién usa la CPU.</p>');
   });
   el('configBtn').onclick = () => {

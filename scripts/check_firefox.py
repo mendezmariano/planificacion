@@ -139,6 +139,26 @@ def disclosure(browser, name, opened):
         browser.click('#' + name + ' summary')
 
 
+def check_assumptions(browser, report):
+    report['stage'] = 'Lista de supuestos y ficha debajo de las cuentas'
+    browser.tab_to('assumptionsBtn')
+    assert browser.execute("return document.activeElement.previousElementSibling.textContent") == 'Teoría'
+    browser.key('\ue007')  # Entrar
+    assert browser.text('#dialogTitle') == 'Supuestos sobre la carga de trabajo'
+    items = browser.execute("return [...document.querySelectorAll('dialog[open] ol li')].map(li => li.textContent)")
+    assert len(items) == 5 and all(word in item for word, item in zip(
+        ['tiempo de CPU', 'mismo instante', 'hasta terminar', 'entrada/salida', 'de antemano'], items)), items
+    browser.key('\ue00c')  # Escape
+    assert browser.execute("return !document.querySelector('dialog').open && document.activeElement.id === 'assumptionsBtn'")
+    assert browser.text('#relaxedAssumptions').startswith('Se cumplen los cinco supuestos')
+    assert browser.execute("""
+      const accounts = document.querySelector('.accounts').getBoundingClientRect();
+      const note = document.querySelector('.example-assumptions').getBoundingClientRect();
+      return note.height > 0 && note.top >= accounts.bottom && Math.abs(note.left - accounts.left) < 1;
+    """)
+    report['checks'].append('Los cinco supuestos en orden, apertura y cierre por teclado, ficha debajo de las cuentas')
+
+
 def check_figures(browser, report):
     data = subprocess.check_output(['node', '-e', "process.stdout.write(JSON.stringify(require('./test/fixtures/chapter7.js')))"], cwd=ROOT)
     disclosure(browser, 'technical', True)
@@ -149,6 +169,11 @@ def check_figures(browser, report):
         browser.click('#reset')
         assert browser.text('#chapterMode') == 'Configuración del apunte'
         assert 'Figura ' + figure in browser.text('#chapterReference')
+        assert browser.text('#assumptionNote').strip()
+        if figure == '7.3':
+            assert browser.text('#chapterReference') == 'Figura 7.3 · SJF · Sección 7.4'
+            assert browser.text('#figure option:checked') == 'Figura 7.3 · SJF · Primero el trabajo más corto'
+            assert browser.text('#relaxedAssumptions') == 'Se relaja el supuesto 1 (igual duración).'
         assert browser.text('#chapterAssumptions').strip()
         assert not snapshot(browser)['results']
         unit = 'ms' if spec['caseId'] == 'disco' else 's'
@@ -314,8 +339,8 @@ def check_controls(browser, report):
     report['checks'].append('Selección de política, cuanto original, carga propia y foco del diálogo')
 
     report['stage'] = 'Enlaces directos'
-    for query, ref in [('?sim=STCF&caso=tardias','Sección 7.5 · Figura 7.5'), ('?seccion=7.6','Sección 7.6 · Figura 7.5'),
-                       ('?figura=7.7','Sección 7.7 · Figura 7.7')]:
+    for query, ref in [('?sim=STCF&caso=tardias','Figura 7.5 · STCF · Sección 7.5'), ('?seccion=7.6','Figura 7.5 · STCF · Sección 7.6'),
+                       ('?figura=7.3','Figura 7.3 · SJF · Sección 7.4'), ('?figura=7.7','Figura 7.7 · RR · Sección 7.7')]:
         browser.open(query)
         assert browser.text('#chapterReference') == ref
     report['checks'].append('Apertura directa por figura, sección y combinación de política y carga')
@@ -425,6 +450,8 @@ def check_experiment(browser, report, output, width):
     browser.fill('#cpuCount', '2')
     browser.fill('#slice', '25')
     browser.click('#applyExperiment')
+    assert browser.text('#relaxedAssumptions') == 'Se relaja el supuesto 3 (ejecución hasta terminar).'
+    assert '25 ms' in browser.text('#assumptionNote')
     browser.click('#end')
     assert browser.text('[data-metric=reloj] .formula') == '100 + 6 + 0 = 106 ms'
     comparison = browser.execute("""return [...document.querySelectorAll('#resultTables table')[1].tBodies[0].rows]
@@ -458,6 +485,7 @@ def check_estimation(browser, report, output, width):
     browser.open('?experimento=estimacion')
     wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción de las ráfagas estimadas')
     assert browser.text('#chapterTitle') == 'Estimar la próxima ráfaga'
+    assert '5 (duración conocida)' in browser.text('#relaxedAssumptions')
     browser.click('#reset')
     def value(model, key):
         return browser.text(f'[data-model="{model}"] [data-field="{key}"]')
@@ -603,8 +631,9 @@ def main():
             report['viewports'].append(viewport)
             assert viewport['width'] == width, ('Ancho solicitado y real distintos', width, viewport)
             assert viewport['scrollWidth'] <= width, ('Desborde horizontal', viewport)
-            assert browser.text('#chapterReference') == 'Sección 7.3 · Figura 7.1'
+            assert browser.text('.intro .eyebrow') == 'Figura 7.1 · FIFO · Sección 7.3'
             wait_for(lambda: snapshot(browser)['t'] > 0, 'reproducción inicial de la figura 7.1')
+            check_assumptions(browser, report)
             check_figures(browser, report)
             check_controls(browser, report)
             check_comparison(browser, report)
