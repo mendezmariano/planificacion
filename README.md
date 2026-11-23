@@ -92,4 +92,6 @@ Abrí esta carpeta en tu editor o iniciá `codex` desde su raíz si ya tenés in
 - `test/chapter.test.js` comprueba la correspondencia con el apunte y la identificación de variantes.
 - `test/trace.test.js` comprueba el consumo, la espera, la respuesta y el retorno en instantes intermedios y al retroceder.
 
-Para publicar el paquete en un alojamiento estático, conservá las carpetas `dist/` y `recursos/` bajo el mismo directorio y enlazá `dist/index.html`. La aplicación usa rutas relativas. El laboratorio de paginación es la referencia de interacción y diseño. [Laboratorio de memoria virtual](https://mendezmariano.github.io/memoria-virtual/) · [Operating Systems: Three Easy Pieces](https://pages.cs.wisc.edu/~remzi/OSTEP/).
+GitHub Pages publica la raíz de la rama `gh-pages`. Para desplegar la revisión de `main`, ejecutá `git push origin main:gh-pages`. La portada conserva los enlaces a ejercicios, por ejemplo [la figura 7.3 con SJF](https://mendezmariano.github.io/planificacion/?figura=7.3).
+
+Para publicar el paquete en otro alojamiento estático, conservá las carpetas `dist/` y `recursos/` bajo el mismo directorio y enlazá `dist/index.html`. La aplicación usa rutas relativas. El laboratorio de paginación es la referencia de interacción y diseño. [Laboratorio de memoria virtual](https://mendezmariano.github.io/memoria-virtual/) · [Operating Systems: Three Easy Pieces](https://pages.cs.wisc.edu/~remzi/OSTEP/).
