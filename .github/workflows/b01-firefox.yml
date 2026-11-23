@@ -19,6 +19,12 @@ jobs:
           TZ=UTC git archive --format=zip --output="$RUNNER_TEMP/clase.zip" HEAD dist recursos
           unzip -q "$RUNNER_TEMP/clase.zip" -d "$paquete"
           python3 scripts/observe_firefox.py --lab-root "$paquete" --output-dir "$RUNNER_TEMP/firefox"
+      - name: Abrir la figura 7.3 desde la portada pública
+        run: |
+          mkdir -p "$RUNNER_TEMP/perfil-pages"
+          firefox --headless --no-remote --profile "$RUNNER_TEMP/perfil-pages" \
+            --window-size 1280,900 --screenshot "$RUNNER_TEMP/firefox/pages-figura-7.3.png" \
+            'https://mendezmariano.github.io/planificacion/?figura=7.3'
       - name: Guardar el informe y las capturas
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

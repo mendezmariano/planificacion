@@ -2,6 +2,27 @@
 (function (root) {
   'use strict';
 
+  // El orden fija la numeración de la sección 7.1.
+  const workloadAssumptions = [
+    {label:'igual duración', statement:'Todos los trabajos necesitan la misma cantidad de tiempo de CPU.'},
+    {label:'llegadas simultáneas', statement:'Todos los trabajos llegan en el mismo instante.'},
+    {label:'ejecución hasta terminar', statement:'Una vez que un trabajo toma la CPU, sigue ejecutando hasta terminar.'},
+    {label:'uso exclusivo de CPU', statement:'Los trabajos usan solamente la CPU, sin operaciones de entrada/salida (E/S).'},
+    {label:'duración conocida', statement:'El planificador conoce de antemano el tiempo de ejecución de cada trabajo.'}
+  ];
+
+  function relaxedAssumptions(jobs, policy, estimated) {
+    const usesDisk = jobs.some(job => job.usesDisk);
+    const relaxed = [];
+    if (jobs.some(job => job.demand !== jobs[0].demand)) relaxed.push(1);
+    if (jobs.some(job => job.arrival !== jobs[0].arrival)) relaxed.push(2);
+    // Se puede interrumpir un trabajo aunque en esta carga le alcance un solo turno.
+    if (usesDisk || policy === 'RR' || policy === 'STCF') relaxed.push(3);
+    if (usesDisk) relaxed.push(4);
+    if (estimated) relaxed.push(5);
+    return relaxed;
+  }
+
   const lessons = {
     iguales: {sections:'7.3', load:'A, B y C llegan juntos y necesitan 10 s cada uno.'},
     convoy: {sections:'7.3 y 7.4', load:'Los tres llegan juntos. A necesita 100 s y B y C necesitan 10 s cada uno.'},
@@ -10,22 +31,38 @@
     disco: {sections:'7.8', load:'A y B llegan juntos y necesitan 50 ms de CPU cada uno. A alterna cinco ráfagas de 10 ms con cuatro operaciones de E/S de 10 ms.'}
   };
   const figures = [
-    {number:'7.1', section:'7.3', caseId:'iguales', policy:'FIFO', title:'Ejemplo sencillo de FIFO'},
-    {number:'7.2', section:'7.3', caseId:'convoy', policy:'FIFO', title:'Por qué FIFO no es tan bueno'},
-    {number:'7.3', section:'7.4', caseId:'convoy', policy:'SJF', title:'Ejemplo sencillo de SJF'},
-    {number:'7.4', section:'7.4', caseId:'tardias', policy:'SJF', title:'SJF con llegadas tardías de B y C'},
-    {number:'7.5', section:'7.5', caseId:'tardias', policy:'STCF', title:'Ejemplo sencillo de STCF'},
-    {number:'7.6', section:'7.7', caseId:'terminales', policy:'SJF', title:'SJF otra vez (malo para el tiempo de respuesta)'},
-    {number:'7.7', section:'7.7', caseId:'terminales', policy:'RR', quantum:1, title:'Round Robin (bueno para el tiempo de respuesta)'},
-    {number:'7.8', section:'7.8', caseId:'disco', policy:'SERIE', title:'Mal aprovechamiento de los recursos'},
-    {number:'7.9', section:'7.8', caseId:'disco', policy:'STCF', title:'La superposición permite aprovechar mejor los recursos'}
+    {number:'7.1', section:'7.3', caseId:'iguales', policy:'FIFO', title:'Ejemplo sencillo de FIFO',
+      assumptionNote:'Los tres trabajos llegan en 0 s. Cada uno necesita 10 s de CPU y FIFO le da un turno completo.'},
+    {number:'7.2', section:'7.3', caseId:'convoy', policy:'FIFO', assumptionFocus:1, title:'Por qué FIFO no es tan bueno',
+      assumptionNote:'A necesita 100 s de CPU. B y C necesitan 10 s cada uno, pero FIFO los deja en la cola detrás de A.'},
+    {number:'7.3', section:'7.4', caseId:'convoy', policy:'SJF', assumptionFocus:1, title:'Ejemplo sencillo de SJF',
+      menuDetail:'Primero el trabajo más corto',
+      assumptionNote:'Se mantiene la carga de la figura 7.2. SJF elige primero a B y C, de 10 s cada uno, y después a A, de 100 s.'},
+    {number:'7.4', section:'7.4', caseId:'tardias', policy:'SJF', assumptionFocus:2, title:'SJF con llegadas tardías de B y C',
+      assumptionNote:'A llega en 0 s y B y C en 10 s. Para calcular cada retorno se resta el instante de llegada de ese trabajo.'},
+    {number:'7.5', section:'7.5', caseId:'tardias', policy:'STCF', assumptionFocus:3, title:'Ejemplo sencillo de STCF',
+      assumptionNote:'Cuando B y C llegan en 10 s, STCF puede desalojar a A y dejar para otro turno la CPU que le falta.'},
+    {number:'7.6', section:'7.7', caseId:'terminales', policy:'SJF', title:'SJF otra vez (malo para el tiempo de respuesta)',
+      assumptionNote:'Los tres llegan juntos y necesitan 5 s cada uno. SJF deja terminar a cada trabajo. Para medir la respuesta, mirá cuándo empieza su primer turno.'},
+    {number:'7.7', section:'7.7', caseId:'terminales', policy:'RR', quantum:1, assumptionFocus:3, title:'Round Robin (bueno para el tiempo de respuesta)',
+      assumptionNote:'La carga es la misma que en la figura 7.6. Al vencer el cuanto de 1 s, RR devuelve a listos al trabajo que todavía necesita CPU.'},
+    {number:'7.8', section:'7.8', caseId:'disco', policy:'SERIE', assumptionFocus:4, title:'Mal aprovechamiento de los recursos',
+      assumptionNote:'A deja la CPU para usar el disco durante 10 ms. En este ejemplo se le reserva el turno y B espera con la CPU ociosa.'},
+    {number:'7.9', section:'7.8', caseId:'disco', policy:'STCF', assumptionFocus:4, title:'La superposición permite aprovechar mejor los recursos',
+      assumptionNote:'Se mantiene la E/S de la figura 7.8. Mientras A usa el disco, B usa la CPU. Cuando A vuelve a listos, STCF puede interrumpir a B.'}
   ];
   // La sección 7.6 vuelve a la figura 7.5 para introducir la primera respuesta.
   const readings = figures.flatMap(f => {
     const original = {...f, key:f.number};
     if (f.number !== '7.5') return [original];
-    return [original, {...f, key:'respuesta', section:'7.6', title:'Tiempo de respuesta'}];
+    return [original, {...f, key:'respuesta', section:'7.6', title:'Tiempo de respuesta', menuDetail:'Tiempo de respuesta (sección 7.6)',
+      assumptionNote:'Se conservan los supuestos de la figura 7.5. Ahora se mide la respuesta desde la llegada hasta el primer uso de la CPU.'}];
   });
+
+  function figureLabel(figure) {
+    const policy = figure.policy === 'SERIE' ? 'E/S en serie' : figure.policy;
+    return 'Figura '+figure.number+' · '+policy;
+  }
 
   function contextFor(caseId, policy, quantum, reading) {
     const unit = caseId === 'disco' ? 'ms' : 's';
@@ -40,8 +77,8 @@
     const assumptions = 'Un procesador y cambios de contexto de costo cero. '+resources+' '+rule;
     if (caseId === 'propia') return {
       kind:'custom', figure:null, mode:'Carga propia', title:'Carga propia',
-      reference:'Capítulo 7 · '+policy, configuration:'Sin figura asociada. Se usan tus llegadas y duraciones.',
-      load:'Los trabajos aparecen por orden de llegada.', assumptions, note:''
+      reference:'Carga propia · '+policy, configuration:'Sin figura asociada. Se usan tus llegadas y duraciones.',
+      load:'Los trabajos aparecen por orden de llegada.', assumptions, assumptionNote:rule, note:''
     };
     const lesson = lessons[caseId];
     const options = figures.filter(f => f.caseId === caseId);
@@ -51,9 +88,9 @@
       kind:entry ? 'original' : 'variant', figure:entry?.number ?? null,
       mode:entry ? 'Configuración del apunte' : 'Variante del apunte',
       title:entry?.title, section:entry?.section ?? lesson.sections,
-      reference:entry ? 'Sección '+entry.section+' · Figura '+entry.number : 'Secciones '+lesson.sections+' · Variante del apunte',
+      reference:entry ? figureLabel(entry)+' · Sección '+entry.section : 'Secciones '+lesson.sections+' · Variante del apunte',
       configuration:options.map(f => (f.policy === 'SERIE' ? 'E/S en serie' : f.policy)+(f.quantum ? ' con cuanto '+f.quantum+' s' : '')+' → figura '+f.number).join(' · '),
-      load:lesson.load, assumptions,
+      load:lesson.load, assumptions, assumptionFocus:entry?.assumptionFocus, assumptionNote:entry?.assumptionNote ?? rule,
       note:caseId === 'disco' ? 'La reserva de turno de la figura 7.8 no es el comportamiento de FIFO. La figura 7.9 usa STCF con un disco FIFO.' : ''
     };
   }
@@ -84,7 +121,7 @@
     }
   }
 
-  const api = {figures, readings, contextFor, comparisonNote};
+  const api = {figures, readings, figureLabel, contextFor, comparisonNote, workloadAssumptions, relaxedAssumptions};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CpuChapter = api;
 })(globalThis);

@@ -23,7 +23,7 @@ select, input[type=number], textarea { background: var(--card); border: 1px soli
 .brandicon i:nth-child(2) { margin-left: 22%; }
 .brandicon i:nth-child(3) { justify-self: end; }
 .school { font-size: 13px; font-weight: 600; }
-.school b, .eyebrow span:first-child { opacity: .65; margin: 0 5px; }
+.school b { opacity: .65; margin: 0 5px; }
 .top nav { display: flex; gap: 16px; margin-left: auto; }
 .top nav button { font-size: 13px; padding: 8px 0; }
 .chapter { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: clamp(18px, 3vw, 38px) 20px; }
@@ -101,7 +101,13 @@ h2 { font-size: 22px; font-weight: 750; letter-spacing: -.04em; }
 #timeline .switch-span text { fill: #fff; }
 .scrub { display: flex; align-items: center; gap: 12px; margin-top: 6px; color: var(--muted); font-size: 12px; }
 .scrub input { flex: 1; min-width: 40px; accent-color: #39718b; }
+.account-column { display: grid; gap: 12px; min-width: 0; }
 .accounts .panel-head { background: #e6f2f5; }
+.example-assumptions { padding: 16px 20px; }
+.example-assumptions h2 { font-size: 18px; }
+.example-assumptions p { margin-top: 7px; font-size: 14px; line-height: 1.45; }
+#relaxedAssumptions { font-weight: 650; }
+#otherAssumptions { color: var(--muted); font-size: 13px; }
 .metric { padding: 17px 20px; }
 .metric + .metric { border-top: 1px solid var(--rule); }
 .metric h3 { font-size: 17px; letter-spacing: -.02em; }
@@ -152,6 +158,9 @@ dialog textarea { width: 100%; font-family: var(--mono); }
 dialog label { margin: 14px 0 4px; font-size: 14px; font-weight: 650; }
 dialog .close { float: right; margin: 0 0 10px 8px; }
 dialog #save { margin-top: 8px; }
+.assumption-list { margin-top: 12px; padding-left: 1.6em; font-size: 15px; line-height: 1.5; }
+.assumption-list li + li { margin-top: 8px; }
+.assumption-list li::marker { font-weight: 700; }
 @media (max-width: 800px) {
   .experiment-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
   .experiment-inputs label { align-content: end; }
@@ -177,7 +186,7 @@ dialog #save { margin-top: 8px; }
   .playbar label { border: 0; padding-left: 8px; }
   .playbar button { padding: 7px; font-size: 12px; }
   .playbar .primary { min-width: 85px; }
-  .panel-head, .event, .trace, .metric { padding: 12px; }
+  .panel-head, .event, .trace, .metric, .example-assumptions { padding: 12px; }
   #jobs { padding-inline: 12px; }
   .bar-key { padding-inline: 12px; }
   .event { gap: 8px; }
@@ -185,4 +194,8 @@ dialog #save { margin-top: 8px; }
   .job-head { gap: 5px; }
   .left { font-size: 12px; }
   .workspace { gap: 12px; }
+}
+@media (max-width: 400px) {
+  .top { flex-direction: column; align-items: flex-start; gap: 2px; padding-block: 8px 3px; }
+  .top nav { margin-left: 0; gap: 18px; }
 }

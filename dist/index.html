@@ -16,12 +16,16 @@
   <header class="masthead"><div class="top">
     <a class="brand" href="./index.html"><span class="brandicon" aria-hidden="true"><i></i><i></i><i></i></span>Turno de CPU</a>
     <span class="school">FIUBA <b>/</b> Sistemas Operativos</span>
-    <nav aria-label="Ayuda del laboratorio"><button data-help="guide">Guía de uso</button><button data-help="theory">Teoría</button></nav>
+    <nav aria-label="Ayuda del laboratorio">
+      <button data-help="guide" aria-haspopup="dialog">Guía de uso</button>
+      <button data-help="theory" aria-haspopup="dialog">Teoría</button>
+      <button id="assumptionsBtn" data-help="assumptions" aria-haspopup="dialog">Supuestos</button>
+    </nav>
   </div></header>
   <main>
     <section class="chapter" aria-labelledby="chapterTitle">
       <div class="intro">
-        <div class="eyebrow">Capítulo 7 <span>/</span> <span id="chapterReference"></span></div>
+        <div class="eyebrow" id="chapterReference"></div>
         <h1 id="chapterTitle">Planificación</h1>
         <p id="chapterLoad"></p>
       </div>
@@ -85,10 +89,18 @@
         </div>
       </section>
 
-      <section class="accounts panel" aria-labelledby="accountTitle">
-        <div class="panel-head"><div><h2 id="accountTitle">Cálculo de tiempos</h2><p id="accountContext"></p></div></div>
-        <div id="calculations"></div>
-      </section>
+      <div class="account-column">
+        <section class="accounts panel" aria-labelledby="accountTitle">
+          <div class="panel-head"><div><h2 id="accountTitle">Cálculo de tiempos</h2><p id="accountContext"></p></div></div>
+          <div id="calculations"></div>
+        </section>
+        <section class="example-assumptions panel" aria-labelledby="exampleAssumptionsTitle">
+          <h2 id="exampleAssumptionsTitle">Supuestos de este ejemplo</h2>
+          <p id="relaxedAssumptions"></p>
+          <p id="assumptionNote"></p>
+          <p id="otherAssumptions" hidden></p>
+        </section>
+      </div>
     </div>
     <section id="comparison" class="panel" aria-labelledby="comparisonTitle" hidden>
       <div class="panel-head"><div><h2 id="comparisonTitle">Comparación con la misma carga</h2>
